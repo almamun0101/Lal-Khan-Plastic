@@ -1,0 +1,19 @@
+# Netlify deploy config for the Factory Production Management System.
+# Netlify auto-detects Next.js and runs it through its Next.js runtime, so
+# there's no "export" step and no static-only limitation.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--no-audit --no-fund"
+  # Firebase web config values are PUBLIC by design (they ship inside the
+  # browser JavaScript for every Firebase app; your Firestore security rules
+  # are what protect the data). Netlify's secrets scanner would otherwise see
+  # them in the built bundle and fail the deploy, so tell it to skip them.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_FIREBASE_API_KEY,NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,NEXT_PUBLIC_FIREBASE_PROJECT_ID,NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,NEXT_PUBLIC_FIREBASE_APP_ID"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

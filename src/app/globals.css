@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-steel-50 text-steel-800 dark:bg-steel-950 dark:text-steel-100;
+}
+
+* {
+  @apply border-steel-200 dark:border-steel-700;
+}
+
+::selection {
+  @apply bg-gauge-200 text-steel-900;
+}
+
+/* Visible keyboard focus ring app-wide */
+:focus-visible {
+  outline: 2px solid #F5A623;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Print stylesheet used by the Reports page "Print / Export PDF" action */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area, #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
