@@ -12,6 +12,8 @@ export const FIREBASE_ERROR_HINTS = {
     "You're not signed in. Log out and log back in.",
   "invalid-api-key":
     "The Firebase API key in .env.local doesn't match this project. Recheck it against Firebase console → Project settings → General → Your apps.",
+  "auth/api-key-not-valid.-please-pass-a-valid-api-key.":
+    "The Firebase API key is missing or wrong on this deployment. Add the six NEXT_PUBLIC_FIREBASE_* environment variables in your host's settings and redeploy.",
   "auth/invalid-api-key":
     "The Firebase API key in .env.local doesn't match this project. Recheck it against Firebase console → Project settings → General → Your apps.",
 };

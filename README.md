@@ -163,6 +163,11 @@ the secrets-scanner exception for Firebase's public web keys).
    (and your custom domain if you have one). Without this, login fails on
    the live site even though it works on localhost.
 
+If you skip step 3, the build still succeeds but the live login page shows a
+red "Firebase isn't configured" notice. That means the variables are missing
+(or were added after the build). Make sure each variable's scope includes
+**Builds**, then redeploy.
+
 Env vars are baked in at build time, so if you change one in Netlify, click
 **Deploys → Trigger deploy → Clear cache and deploy site**.
 

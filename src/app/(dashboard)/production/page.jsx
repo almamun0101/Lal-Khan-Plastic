@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { orderBy, where } from "firebase/firestore";
+import { orderBy } from "firebase/firestore";
 import { Plus, Trash2, Save, Sparkles, Gauge } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +23,12 @@ const EMPTY_ITEMS = [{ product_id: "", count: 0 }];
 export default function ProductionEntryPage() {
   const { user } = useAuth();
   const { settings } = useSettings();
-  const { data: workers } = useCollection("workers", [where("status", "==", "active"), orderBy("name")]);
+  // Only sorted by name in the query; "active only" is filtered below in the
+  // browser. Combining where("status") + orderBy("name") in Firestore needs a
+  // composite index you'd have to create by hand, and with ~12 workers
+  // filtering client-side is instant.
+  const { data: allWorkers } = useCollection("workers", [orderBy("name")]);
+  const workers = useMemo(() => allWorkers.filter((w) => w.status === "active"), [allWorkers]);
   const { data: machines } = useCollection("machines", [orderBy("name")]);
   const { data: products } = useCollection("products", [orderBy("name")]);
   // Newest-first: getLastCountForMachineProduct and getMachineCurrentState

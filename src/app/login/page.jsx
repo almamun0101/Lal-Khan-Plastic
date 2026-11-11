@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { firebaseConfigMissing } from "@/lib/firebase";
+import { explainFirebaseError } from "@/lib/firebase-error-hints";
 function LoginPage() {
   const { login, user, loading } = useAuth();
   const router = useRouter();
@@ -23,7 +25,11 @@ function LoginPage() {
       toast.success("Welcome back");
       router.push("/dashboard");
     } catch (err) {
-      toast.error("Invalid email or password");
+      // Only wrong credentials should say "invalid email or password"; any
+      // other failure (bad config, network, disabled sign-in) gets its real
+      // reason so it isn't hidden behind a misleading message.
+      const credentialCodes = ["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-email"];
+      toast.error(credentialCodes.includes(err?.code) ? "Invalid email or password" : explainFirebaseError(err));
     } finally {
       setSubmitting(false);
     }
@@ -38,6 +44,16 @@ function LoginPage() {
           <p className="mt-1 text-sm text-steel-400">Sign in to the operator dashboard</p>
         </div>
 
+        {firebaseConfigMissing && (
+          <div className="mb-4 rounded-panel border border-danger/40 bg-danger/10 p-4 text-sm text-red-200">
+            <p className="font-semibold">Firebase isn't configured on this deployment.</p>
+            <p className="mt-1">
+              The NEXT_PUBLIC_FIREBASE_* environment variables were missing when this site was built.
+              Add all six in your host's environment settings (Netlify: Site configuration → Environment
+              variables), then redeploy with "Clear cache and deploy site".
+            </p>
+          </div>
+        )}
         <form
     onSubmit={onSubmit}
     className="rounded-panel border border-steel-800 bg-steel-900 p-6 shadow-panel-dark"
