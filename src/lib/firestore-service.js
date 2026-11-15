@@ -1,82 +1,111 @@
 import {
   collection,
-  doc,
-  onSnapshot,
-  addDoc,
-  updateDoc,
   deleteDoc,
+  doc,
+  runTransaction,
   setDoc,
-  query,
-  orderBy
+  updateDoc,
+  writeBatch,
 } from "firebase/firestore";
+import { toast } from "sonner";
 import { db } from "./firebase";
 import { explainFirebaseError } from "./firebase-error-hints";
-// Wraps a promise so it rejects with a clear, actionable message after `ms`
-// milliseconds instead of hanging forever. This matters because a
-// misconfigured Firestore (database not created, rules blocking the write,
-// no network) makes the Firestore SDK retry silently -- from the UI it just
-// looks like the form "won't close" with a spinner stuck forever. Failing
-// loudly turns that into a toast the user can actually act on.
-function withTimeout(promise, ms = 1e4) {
+
+// Firestore only resolves a write promise once the SERVER confirms it. When the
+// connection is bad the write is still safely stored on this device and will
+// sync later, but the promise just hangs, which used to look like a form stuck
+// on a spinner (and tempted people to submit twice).
+//
+// So after `ms` we stop waiting and report { queued: true } instead of an error.
+// Every create uses an ID generated up-front, so re-submitting the same form
+// can never create a duplicate.
+function guarded(promise, ms = 12000) {
   let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(
-      () => reject(
-        new Error(
-          "Request timed out. Check that Firestore Database is created in the Firebase console (Build \u2192 Firestore Database) and that firestore.rules has been published."
-        )
-      ),
-      ms
-    );
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ queued: true }), ms);
   });
-  return Promise.race([promise, timeout]).then(
-    (result) => {
+  return Promise.race([promise.then(() => ({ queued: false })), timeout]).then(
+    (r) => {
       clearTimeout(timer);
-      return result;
+      return r;
     },
     (err) => {
       clearTimeout(timer);
-      // Surface the real Firebase error code (e.g. "permission-denied",
-      // "unavailable") directly in the message so it shows up in the toast
-      // itself, not just the browser console — no dev tools needed to see
-      // what actually went wrong.
       if (err?.code) err.message = explainFirebaseError(err);
       throw err;
     }
   );
 }
-function subscribeCollection(collectionName, onData, constraints = [orderBy("created_at", "desc")], onError) {
-  const q = query(collection(db, collectionName), ...constraints);
-  return onSnapshot(
-    q,
-    (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      onData(items);
-    },
-    (err) => {
-      console.error(`[firestore] subscribe failed for ${collectionName}: ${err.code} — ${err.message}`);
-      onData([]);
-      if (onError) onError(err);
-    }
+
+export function newId(collectionName) {
+  return doc(collection(db, collectionName)).id;
+}
+
+// Creates (or idempotently re-creates) a document. Pass `id` from newId() so a
+// retry after a timeout overwrites the same document instead of adding another.
+export async function createDoc(collectionName, data, id) {
+  const ref = id ? doc(db, collectionName, id) : doc(collection(db, collectionName));
+  const { queued } = await guarded(setDoc(ref, data));
+  return { id: ref.id, queued };
+}
+
+export async function updateDocById(collectionName, id, data) {
+  return guarded(updateDoc(doc(db, collectionName, id), data));
+}
+
+export async function setDocById(collectionName, id, data, options) {
+  return guarded(options ? setDoc(doc(db, collectionName, id), data, options) : setDoc(doc(db, collectionName, id), data));
+}
+
+export async function deleteDocById(collectionName, id) {
+  return guarded(deleteDoc(doc(db, collectionName, id)));
+}
+
+// Deletes several documents atomically (all or nothing).
+export async function deleteMany(collectionName, ids) {
+  const batch = writeBatch(db);
+  ids.forEach((id) => batch.delete(doc(db, collectionName, id)));
+  return guarded(batch.commit());
+}
+
+/**
+ * Creates a customer order and assigns its number (ORD-0001, ORD-0002 …) inside
+ * a transaction, so two people or two tabs can never get the same number.
+ * `floor` is the highest number already seen in the loaded data, a safety net in
+ * case the counter document was ever deleted.
+ */
+export async function createSalesOrder(data, { id, floor = 0 } = {}) {
+  const ref = id ? doc(db, "sales_orders", id) : doc(collection(db, "sales_orders"));
+  const counterRef = doc(db, "app_config", "counters");
+  let order_no = "";
+  const { queued } = await guarded(
+    runTransaction(db, async (tx) => {
+      const existing = await tx.get(ref);
+      if (existing.exists()) {
+        order_no = existing.data().order_no; // retry of an order that already saved
+        return;
+      }
+      const counter = await tx.get(counterRef);
+      const current = counter.exists() ? Number(counter.data().sales_order) || 0 : 0;
+      const next = Math.max(current, Number(floor) || 0) + 1;
+      order_no = `ORD-${String(next).padStart(4, "0")}`;
+      tx.set(counterRef, { sales_order: next }, { merge: true });
+      tx.set(ref, { ...data, order_no });
+    }),
+    20000
   );
+  return { id: ref.id, order_no, queued };
 }
-async function createDoc(collectionName, data) {
-  const ref = await withTimeout(addDoc(collection(db, collectionName), data));
-  return ref.id;
+
+// One consistent success/queued toast for every save.
+export function notifySaved(result, message) {
+  if (result?.queued) {
+    toast.warning(`${message} — saved on this device, waiting for the connection. It will sync automatically; don't enter it again.`, { duration: 7000 });
+  } else {
+    toast.success(message);
+  }
 }
-async function updateDocById(collectionName, id, data) {
-  await withTimeout(updateDoc(doc(db, collectionName, id), data));
+
+export function errorMessage(err, fallback = "Something went wrong. Please try again.") {
+  return err?.message || fallback;
 }
-async function setDocById(collectionName, id, data) {
-  await withTimeout(setDoc(doc(db, collectionName, id), data));
-}
-async function deleteDocById(collectionName, id) {
-  await withTimeout(deleteDoc(doc(db, collectionName, id)));
-}
-export {
-  createDoc,
-  deleteDocById,
-  setDocById,
-  subscribeCollection,
-  updateDocById
-};

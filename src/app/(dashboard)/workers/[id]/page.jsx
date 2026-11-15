@@ -1,7 +1,6 @@
 "use client";
 import { useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { orderBy } from "firebase/firestore";
 import { ArrowLeft, CalendarCheck, Clock, Boxes } from "lucide-react";
 import { useCollection } from "@/hooks/useCollection";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -14,7 +13,7 @@ function WorkerDetailPage() {
   const router = useRouter();
   const { settings } = useSettings();
   const { data: workers, loading: workersLoading } = useCollection("workers");
-  const { data: logs, loading: logsLoading } = useCollection("production_logs", [orderBy("created_at", "desc")]);
+  const { data: logs, loading: logsLoading } = useCollection("production_logs");
   const { data: machines } = useCollection("machines");
   const worker = workers.find((w) => w.id === params.id);
   const machineMap = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
@@ -61,19 +60,19 @@ function WorkerDetailPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <GaugeStat label="Working Days" value={`${stats.workingDays}`} icon={CalendarCheck} tone="instrument" fill={Math.min(100, stats.workingDays * 3)} />
-        <GaugeStat label="Duty Days" value={`${stats.dutyDays}`} subvalue="6h blocks worked" icon={Clock} tone="gauge" fill={Math.min(100, stats.dutyDays * 3)} />
-        <GaugeStat label="Overtime Days" value={`${stats.overtimeDays}`} subvalue="12h double shifts" icon={Clock} tone="ok" fill={Math.min(100, stats.overtimeDays * 6)} />
+        <GaugeStat label="Duty Days" value={`${stats.dutyDays}`} subvalue="shifts worked" icon={Clock} tone="gauge" fill={Math.min(100, stats.dutyDays * 3)} />
+        <GaugeStat label="Overtime Days" value={`${stats.overtimeDays}`} subvalue="day + night same date" icon={Clock} tone="ok" fill={Math.min(100, stats.overtimeDays * 6)} />
         <GaugeStat label="Total Production" value={stats.totalProduction.toLocaleString()} subvalue="pieces assisted" icon={Boxes} tone="instrument" fill={Math.min(100, stats.totalProduction / 20)} />
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Bill Value Contributed</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Production Value Contributed</CardTitle></CardHeader>
         <CardBody>
           <p className="font-display text-3xl font-bold text-instrument-600 dark:text-gauge-300">
             {formatCurrency(stats.totalBillContribution, settings.currency)}
           </p>
           <p className="mt-1 text-xs text-steel-400">
-            Sum of the shift bills this worker took part in. Wages aren't tracked in this system — add a wage rate in Settings if you want computed pay.
+            Estimated value of the shifts this worker took part in (counted pieces × price). Not wages and not money received.
           </p>
         </CardBody>
       </Card>
@@ -88,7 +87,7 @@ function WorkerDetailPage() {
                 <th className="px-4 py-3">Shift</th>
                 <th className="px-4 py-3">Machine</th>
                 <th className="px-4 py-3 text-right">Qty</th>
-                <th className="px-4 py-3 text-right">Bill</th>
+                <th className="px-4 py-3 text-right">Value</th>
               </tr>
             </thead>
             <tbody>

@@ -1,6 +1,5 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
-import { orderBy } from "firebase/firestore";
 import { ArrowLeft, Boxes, Wallet, Cog } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useCollection } from "@/hooks/useCollection";
@@ -14,13 +13,13 @@ function MachineDetailPage() {
   const router = useRouter();
   const { settings } = useSettings();
   const { data: machines, loading: mLoading } = useCollection("machines");
-  const { data: logs, loading: lLoading } = useCollection("production_logs", [orderBy("created_at", "desc")]);
+  const { data: logs, loading: lLoading } = useCollection("production_logs");
   const machine = machines.find((m) => m.id === params.id);
   const machineLogs = logs.filter((l) => l.machine_id === params.id);
   const totalProduction = machineLogs.reduce((s, l) => s + l.total_quantity, 0);
   const totalRevenue = machineLogs.reduce((s, l) => s + l.total_bill, 0);
   const totalProducts = new Set(machineLogs.flatMap((l) => l.items.map((i) => i.product_id))).size;
-  const monthPrefix = todayISO().slice(0, 7);
+  const monthPrefix = todayISO().slice(0, 7); // client-only page (shell renders after login), safe to compute here
   const dailyMap = /* @__PURE__ */ new Map();
   machineLogs.filter((l) => l.date.startsWith(monthPrefix)).forEach((l) => dailyMap.set(l.date, (dailyMap.get(l.date) ?? 0) + l.total_quantity));
   const dailyData = Array.from(dailyMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([date, qty]) => ({ date: date.slice(5), qty }));
@@ -47,7 +46,7 @@ function MachineDetailPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <GaugeStat label="Total Production" value={totalProduction.toLocaleString()} subvalue="pieces" icon={Boxes} tone="instrument" fill={Math.min(100, totalProduction / 20)} />
         <GaugeStat label="Products Produced" value={`${totalProducts}`} subvalue="distinct SKUs" icon={Boxes} tone="gauge" fill={Math.min(100, totalProducts * 15)} />
-        <GaugeStat label="Revenue Generated" value={formatCurrency(totalRevenue, settings.currency)} icon={Wallet} tone="ok" fill={Math.min(100, totalRevenue / 500)} />
+        <GaugeStat label="Production Value" value={formatCurrency(totalRevenue, settings.currency)} icon={Wallet} tone="ok" fill={Math.min(100, totalRevenue / 500)} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -86,7 +85,7 @@ function MachineDetailPage() {
         <CardBody className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="bg-steel-50 text-left text-xs uppercase tracking-wide text-steel-400 dark:bg-steel-900">
-              <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Shift</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Bill</th></tr>
+              <tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Shift</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Value</th></tr>
             </thead>
             <tbody>
               {machineLogs.slice(0, 10).map((log) => <tr key={log.id} className="border-t border-steel-100 dark:border-steel-700">

@@ -5,19 +5,53 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-// Returns today's date as YYYY-MM-DD in the local timezone.
-function todayISO() {
-  const d = new Date();
-  const offset = d.getTimezoneOffset();
-  const local = new Date(d.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 10);
+const pad = (n) => String(n).padStart(2, "0");
+
+// Formats a Date as YYYY-MM-DD using the LOCAL calendar (never toISOString,
+// which converts to UTC and shifts the date by a day in timezones like
+// Bangladesh, UTC+6, between midnight and 6 AM).
+function toISODate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// Detects which shift a given moment (default: now) falls into, based on a
-// "HH:MM" day-shift start time. Day shift runs from day_shift_start to
-// night_shift_start; night shift wraps past midnight back to day_shift_start.
-// Used both for "what shift is it right now" (production entry form) and
-// "what shift will an ETA land in" (orders page).
+// Parses YYYY-MM-DD as a local date (noon, to stay clear of DST edges).
+function parseISODate(iso) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 12, 0, 0, 0);
+}
+
+function todayISO() {
+  return toISODate(new Date());
+}
+
+function addDays(iso, n) {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
+function diffDays(aISO, bISO) {
+  return Math.round((parseISODate(bISO) - parseISODate(aISO)) / 86400000);
+}
+
+// First day of the week containing `iso`. weekStart: 0=Sun … 6=Sat.
+function startOfWeek(iso, weekStart = 6) {
+  const d = parseISODate(iso);
+  const diff = (d.getDay() - weekStart + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return toISODate(d);
+}
+
+function daysBetween(startISO, endISO) {
+  const out = [];
+  const end = parseISODate(endISO);
+  for (let d = parseISODate(startISO); d <= end; d.setDate(d.getDate() + 1)) {
+    out.push(toISODate(d));
+  }
+  return out;
+}
+
+// Detects which shift a moment falls into, from the "HH:MM" shift start times.
 function detectShift(dayStart = "09:00", nightStart = "21:00", at = new Date()) {
   const minutesNow = at.getHours() * 60 + at.getMinutes();
   const toMinutes = (t) => {
@@ -26,25 +60,41 @@ function detectShift(dayStart = "09:00", nightStart = "21:00", at = new Date()) 
   };
   const dayStartM = toMinutes(dayStart);
   const nightStartM = toMinutes(nightStart);
-
   if (dayStartM < nightStartM) {
     return minutesNow >= dayStartM && minutesNow < nightStartM ? "day" : "night";
   }
   return minutesNow >= dayStartM || minutesNow < nightStartM ? "day" : "night";
 }
+
+const CURRENCY_SYMBOLS = { BDT: "\u09F3", USD: "$", EUR: "\u20AC", GBP: "\xA3", INR: "\u20B9" };
+
+// Deterministic formatting (explicit locale) so server and browser always agree.
+// BDT/INR use lakh/crore digit grouping, which is how amounts are read locally.
 function formatCurrency(amount, currency = "BDT") {
-  const symbols = { BDT: "\u09F3", USD: "$", EUR: "\u20AC", GBP: "\xA3", INR: "\u20B9" };
-  const symbol = symbols[currency] ?? currency + " ";
-  return `${symbol}${amount.toLocaleString(void 0, { maximumFractionDigits: 2 })}`;
-}
-function formatDate(iso) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const n = Number(amount);
+  const safe = Number.isFinite(n) ? n : 0;
+  const symbol = CURRENCY_SYMBOLS[currency] ?? `${currency} `;
+  const locale = currency === "BDT" || currency === "INR" ? "en-IN" : "en-US";
+  const sign = safe < 0 ? "-" : "";
+  return `${sign}${symbol}${Math.abs(safe).toLocaleString(locale, { maximumFractionDigits: 2 })}`;
 }
 
-// Turns a minute count into "45m" / "3h 20m" / "2d 4h" for ETA displays.
+function formatNumber(n) {
+  const v = Number(n);
+  return (Number.isFinite(v) ? v : 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDate(iso) {
+  if (!iso) return "\u2014";
+  const [y, m, d] = String(iso).split("-").map(Number);
+  if (!y || !m || !d) return String(iso);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+}
+
 function formatMinutes(minutes) {
-  if (minutes == null || !isFinite(minutes) || minutes < 0) return "—";
+  if (minutes == null || !isFinite(minutes) || minutes < 0) return "\u2014";
   const totalMin = Math.round(minutes);
   const days = Math.floor(totalMin / (60 * 24));
   const hours = Math.floor((totalMin % (60 * 24)) / 60);
@@ -55,34 +105,37 @@ function formatMinutes(minutes) {
 }
 
 function formatDateTime(date) {
-  if (!date) return "—";
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  if (!date) return "\u2014";
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 }
+
 function genId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
-function daysBetween(startISO, endISO) {
-  const out = [];
-  const start = /* @__PURE__ */ new Date(startISO + "T00:00:00");
-  const end = /* @__PURE__ */ new Date(endISO + "T00:00:00");
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    out.push(d.toISOString().slice(0, 10));
-  }
-  return out;
+
+// Rounds to 2 decimals, which keeps long sums of money free of
+// floating-point drift (0.1 + 0.2 style errors).
+function round2(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.round((v + Number.EPSILON) * 100) / 100;
 }
+
 export {
+  addDays,
   cn,
   daysBetween,
   detectShift,
+  diffDays,
   formatCurrency,
   formatDate,
   formatDateTime,
   formatMinutes,
+  formatNumber,
   genId,
-  todayISO
+  parseISODate,
+  round2,
+  startOfWeek,
+  toISODate,
+  todayISO,
 };

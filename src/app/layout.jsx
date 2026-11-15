@@ -19,8 +19,8 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap"
 });
 const metadata = {
-  title: "Factory Production Management System",
-  description: "Track daily production, machines, workers, and billing on the factory floor."
+  title: "Business Control Panel",
+  description: "Clients, orders, payments, expenses and production for your factory."
 };
 function RootLayout({ children }) {
   return <html lang="en" suppressHydrationWarning>

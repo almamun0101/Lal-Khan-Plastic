@@ -1,9 +1,9 @@
 rules_version = '2';
 
-// This system has a single operator/admin role: anyone who can sign in
-// (accounts are created manually in the Firebase console) has full access.
-// If you later add multiple staff logins with different permission levels,
-// replace `isSignedIn()` below with role checks against a `users/{uid}` doc.
+// One operator/admin role: anyone who can sign in (accounts are created manually
+// in the Firebase console) has full access to the business data. Everything else
+// is denied. Money and order documents are also checked for sane shapes, so a bug
+// or typo can't store a text amount or a negative payment.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -11,43 +11,55 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /workers/{workerId} {
-      allow read, write: if isSignedIn();
+    // ---- business data ----------------------------------------------------
+    match /clients/{id} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0;
     }
 
-    match /machines/{machineId} {
-      allow read, write: if isSignedIn();
+    match /sales_orders/{id} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.client_id is string
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0;
     }
 
-    match /products/{productId} {
-      allow read, write: if isSignedIn();
+    match /payments/{id} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.client_id is string
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.method in ['cash', 'bkash', 'bank', 'other']
+        && request.resource.data.date is string;
     }
 
-    match /production_logs/{logId} {
-      allow read, write: if isSignedIn();
+    match /expenses/{id} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.date is string;
     }
 
-    match /orders/{orderId} {
-      allow read, write: if isSignedIn();
-    }
+    // ---- production data (unchanged behaviour) -----------------------------
+    match /workers/{id} { allow read, write: if isSignedIn(); }
+    match /machines/{id} { allow read, write: if isSignedIn(); }
+    match /products/{id} { allow read, write: if isSignedIn(); }
+    match /production_logs/{id} { allow read, write: if isSignedIn(); }
+    // Production queue (the original "orders" collection, kept as-is so existing data survives)
+    match /orders/{id} { allow read, write: if isSignedIn(); }
 
-    match /expenses/{expenseId} {
-      allow read, write: if isSignedIn();
-    }
+    // Settings and the order-number counter
+    match /app_config/{docId} { allow read, write: if isSignedIn(); }
 
-    match /app_config/{docId} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Used by the in-app connection diagnostics panel to verify reads/writes
-    // are actually working — not real production data.
-    match /_diagnostics/{docId} {
-      allow read, write: if isSignedIn();
-    }
+    // Used by the in-app connection check; not real data.
+    match /_diagnostics/{docId} { allow read, write: if isSignedIn(); }
 
     // Deny everything else by default.
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

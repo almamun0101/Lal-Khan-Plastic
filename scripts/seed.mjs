@@ -41,9 +41,9 @@ async function seed() {
   }));
 
   const products = [
-    { name: "Product A", price_per_piece: 2.5, rate_per_minute: 3 },
-    { name: "Product B", price_per_piece: 4.0, rate_per_minute: 1.5 },
-    { name: "Product C", price_per_piece: 1.75, rate_per_minute: 5 },
+    { name: "Product A", price_per_piece: 2.5, cost_per_piece: 1.5, rate_per_minute: 3 },
+    { name: "Product B", price_per_piece: 4.0, cost_per_piece: 2.5, rate_per_minute: 1.5 },
+    { name: "Product C", price_per_piece: 1.75, cost_per_piece: 1, rate_per_minute: 5 },
   ];
 
   const batch = db.batch();
@@ -69,7 +69,13 @@ async function seed() {
     night_shift_start: "21:00",
     currency: "BDT",
     theme: "system",
-  });
+    opening_balance: 0,
+    credit_days: 15,
+    low_cash_threshold: 0,
+    week_starts_on: 6,
+    business_phone: "",
+    business_address: "",
+  }, { merge: true });
 
   await batch.commit();
   console.log("Seeded 3 machines, 12 workers, 3 products, and default settings.");

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { orderBy } from "firebase/firestore";
 import { Cog } from "lucide-react";
 import { useCollection } from "@/hooks/useCollection";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -12,10 +11,10 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 export default function DailyPage() {
   const { settings } = useSettings();
   const today = useToday();
-  const { data: logs, loading } = useCollection("production_logs", [orderBy("created_at", "desc")]);
-  const { data: machines } = useCollection("machines", [orderBy("name")]);
-  const { data: workers } = useCollection("workers", [orderBy("name")]);
-  const { data: products } = useCollection("products", [orderBy("name")]);
+  const { data: logs, loading } = useCollection("production_logs");
+  const { data: machines } = useCollection("machines");
+  const { data: workers } = useCollection("workers");
+  const { data: products } = useCollection("products");
 
   const machineMap = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
   const workerMap = useMemo(() => new Map(workers.map((w) => [w.id, w])), [workers]);

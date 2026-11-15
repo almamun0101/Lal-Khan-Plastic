@@ -1,16 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { orderBy } from "firebase/firestore";
 import { useCollection } from "@/hooks/useCollection";
 import { useSettings } from "@/contexts/SettingsContext";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { logItemValue } from "@/lib/finance";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 
 export default function IncomePage() {
   const { settings } = useSettings();
-  const { data: logs, loading } = useCollection("production_logs", [orderBy("date", "asc")]);
-  const { data: products } = useCollection("products", [orderBy("name")]);
+  const { data: logs, loading } = useCollection("production_logs");
+  const { data: products } = useCollection("products");
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
@@ -18,8 +18,9 @@ export default function IncomePage() {
     const map = new Map();
     logs.forEach((log) => {
       log.items.forEach((item) => {
-        const entry = map.get(item.product_id) ?? { qty: 0, firstDate: log.date, lastDate: log.date, entries: 0 };
+        const entry = map.get(item.product_id) ?? { qty: 0, value: 0, firstDate: log.date, lastDate: log.date, entries: 0 };
         entry.qty += item.quantity;
+        entry.value += logItemValue(item, productMap);
         entry.entries += 1;
         if (log.date < entry.firstDate) entry.firstDate = log.date;
         if (log.date > entry.lastDate) entry.lastDate = log.date;
@@ -34,7 +35,7 @@ export default function IncomePage() {
         name: product?.name ?? "Unknown product",
         qty: entry.qty,
         price,
-        income: entry.qty * price,
+        income: entry.value,
         firstDate: entry.firstDate,
         lastDate: entry.lastDate,
         entries: entry.entries,
@@ -48,8 +49,8 @@ export default function IncomePage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-display text-2xl font-bold text-steel-800 dark:text-steel-50">Income</h1>
-        <p className="mt-1 text-sm text-steel-500 dark:text-steel-400">Finished counts and revenue by product, across all logged production.</p>
+        <h1 className="font-display text-2xl font-bold text-steel-800 dark:text-steel-50">Production Value</h1>
+        <p className="mt-1 text-sm text-steel-500 dark:text-steel-400">Estimated value of everything counted on the machines (pieces × price). This is NOT money received or sales: see Orders, Payments and Finance for that.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -61,7 +62,7 @@ export default function IncomePage() {
         </Card>
         <Card>
           <CardBody>
-            <p className="text-xs font-semibold uppercase tracking-wide text-steel-400">Total Income</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-steel-400">Total Production Value</p>
             <p className="mt-1 font-display text-2xl font-bold text-instrument-600 dark:text-gauge-300">{formatCurrency(totalIncome, settings.currency)}</p>
           </CardBody>
         </Card>
@@ -75,8 +76,8 @@ export default function IncomePage() {
               <tr>
                 <th className="px-4 py-3">Product</th>
                 <th className="px-4 py-3 text-right">Finished Count</th>
-                <th className="px-4 py-3 text-right">Price / Piece</th>
-                <th className="px-4 py-3 text-right">Income</th>
+                <th className="px-4 py-3 text-right">Price / Piece (now)</th>
+                <th className="px-4 py-3 text-right">Value</th>
                 <th className="px-4 py-3">First Logged</th>
                 <th className="px-4 py-3">Last Logged</th>
               </tr>

@@ -1,12 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
-import { orderBy } from "firebase/firestore";
 import { Eye, Pencil, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection } from "@/hooks/useCollection";
 import { useSettings } from "@/contexts/SettingsContext";
 import { deleteDocById, updateDocById } from "@/lib/firestore-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { logItemValue } from "@/lib/finance";
+import { errorMessage, notifySaved } from "@/lib/firestore-service";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -16,10 +17,10 @@ import { SkeletonRow } from "@/components/ui/Skeleton";
 const PAGE_SIZE = 10;
 function ProductionLogsPage() {
   const { settings } = useSettings();
-  const { data: logs, loading } = useCollection("production_logs", [orderBy("created_at", "desc")]);
-  const { data: machines } = useCollection("machines", [orderBy("name")]);
-  const { data: workers } = useCollection("workers", [orderBy("name")]);
-  const { data: products } = useCollection("products", [orderBy("name")]);
+  const { data: logs, loading } = useCollection("production_logs");
+  const { data: machines } = useCollection("machines");
+  const { data: workers } = useCollection("workers");
+  const { data: products } = useCollection("products");
   const machineMap = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
   const workerMap = useMemo(() => new Map(workers.map((w) => [w.id, w])), [workers]);
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -50,12 +51,11 @@ function ProductionLogsPage() {
     }
     setBusy(true);
     try {
-      await updateDocById("production_logs", editing.id, { ...editDraft, updated_at: Date.now() });
-      toast.success("Entry updated");
+      notifySaved(await updateDocById("production_logs", editing.id, { date: editDraft.date, shift: editDraft.shift, worker1_id: editDraft.worker1_id, worker2_id: editDraft.worker2_id, updated_at: Date.now() }), "Entry updated");
       setEditing(null);
       setEditDraft(null);
-    } catch {
-      toast.error("Failed to update entry");
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to update entry"));
     } finally {
       setBusy(false);
     }
@@ -82,11 +82,10 @@ function ProductionLogsPage() {
     if (!deleting) return;
     setBusy(true);
     try {
-      await deleteDocById("production_logs", deleting.id);
-      toast.success("Entry deleted");
+      notifySaved(await deleteDocById("production_logs", deleting.id), "Entry deleted");
       setDeleting(null);
-    } catch {
-      toast.error("Failed to delete entry");
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to delete entry"));
     } finally {
       setBusy(false);
     }
@@ -141,7 +140,7 @@ function ProductionLogsPage() {
                 <th className="px-4 py-3">Worker 2</th>
                 <th className="px-4 py-3">Operator</th>
                 <th className="px-4 py-3 text-right">Qty</th>
-                <th className="px-4 py-3 text-right">Bill</th>
+                <th className="px-4 py-3 text-right">Value</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -208,14 +207,14 @@ function ProductionLogsPage() {
                       <td className="px-3 py-2 text-right font-mono text-xs text-steel-400">{item.start_count ?? 0} → {item.end_count ?? item.quantity}</td>
                       <td className="px-3 py-2 text-right font-mono">{item.quantity}</td>
                       <td className="px-3 py-2 text-right font-mono">
-                        {formatCurrency((productMap.get(item.product_id)?.price_per_piece ?? 0) * item.quantity, settings.currency)}
+                        {formatCurrency(logItemValue(item, productMap), settings.currency)}
                       </td>
                     </tr>)}
                 </tbody>
               </table>
             </div>
             <div className="flex justify-between rounded-lg bg-steel-50 px-4 py-3 dark:bg-steel-900">
-              <span className="font-semibold text-steel-600 dark:text-steel-300">Total Bill</span>
+              <span className="font-semibold text-steel-600 dark:text-steel-300">Production value</span>
               <span className="font-mono font-bold text-instrument-600 dark:text-gauge-300">{formatCurrency(viewing.total_bill, settings.currency)}</span>
             </div>
           </div>}
@@ -244,9 +243,10 @@ function ProductionLogsPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-steel-500">Machine</label>
-              <Select value={editDraft.machine_id} onChange={(e) => setEditDraft({ ...editDraft, machine_id: e.target.value })}>
+              <Select value={editDraft.machine_id} disabled onChange={() => {}}>
                 {machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </Select>
+              <p className="mt-1 text-xs text-steel-400">The machine can't be changed after saving; it would break the running counter. Delete and re-enter the entry instead.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

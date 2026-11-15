@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { orderBy } from "firebase/firestore";
 import { Plus, Trash2, Save, Sparkles, Gauge } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useCollection } from "@/hooks/useCollection";
-import { createDoc } from "@/lib/firestore-service";
+import { createDoc, errorMessage, newId, notifySaved } from "@/lib/firestore-service";
 import { productionEntrySchema } from "@/lib/schemas";
 import { todayISO, detectShift, formatCurrency } from "@/lib/utils";
 import { getLastCountForMachineProduct, getMachineCurrentState } from "@/lib/production-helpers";
@@ -22,18 +21,19 @@ const EMPTY_ITEMS = [{ product_id: "", count: 0 }];
 
 export default function ProductionEntryPage() {
   const { user } = useAuth();
+  const idRef = useRef("");
   const { settings } = useSettings();
   // Only sorted by name in the query; "active only" is filtered below in the
   // browser. Combining where("status") + orderBy("name") in Firestore needs a
   // composite index you'd have to create by hand, and with ~12 workers
   // filtering client-side is instant.
-  const { data: allWorkers } = useCollection("workers", [orderBy("name")]);
+  const { data: allWorkers } = useCollection("workers");
   const workers = useMemo(() => allWorkers.filter((w) => w.status === "active"), [allWorkers]);
-  const { data: machines } = useCollection("machines", [orderBy("name")]);
-  const { data: products } = useCollection("products", [orderBy("name")]);
+  const { data: machines } = useCollection("machines");
+  const { data: products } = useCollection("products");
   // Newest-first: getLastCountForMachineProduct and getMachineCurrentState
   // both expect this ordering so they can just take the first match.
-  const { data: logs } = useCollection("production_logs", [orderBy("created_at", "desc")]);
+  const { data: logs } = useCollection("production_logs");
 
   const {
     register,
@@ -151,6 +151,7 @@ export default function ProductionEntryPage() {
             start_count: start,
             end_count: end,
             quantity: end - start,
+            unit_price: priceMap.get(item.product_id) ?? 0, // price at the time, so old bills never change when prices do
           };
         }),
         total_quantity: totalProduced,
@@ -158,8 +159,9 @@ export default function ProductionEntryPage() {
         created_at: now,
         updated_at: now,
       };
-      await createDoc("production_logs", log);
-      toast.success("Production count saved");
+      if (!idRef.current) idRef.current = newId("production_logs");
+      notifySaved(await createDoc("production_logs", log, idRef.current), "Production count saved");
+      idRef.current = "";
       reset({
         date: todayISO(),
         shift: detectShift(settings.day_shift_start, settings.night_shift_start),
@@ -170,7 +172,7 @@ export default function ProductionEntryPage() {
       });
     } catch (err) {
       console.error(err);
-      toast.error(err.message || "Could not save the production count. Try again.");
+      toast.error(errorMessage(err, "Could not save the production count. Try again."));
     }
   }
 

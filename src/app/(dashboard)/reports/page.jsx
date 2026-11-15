@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { orderBy } from "firebase/firestore";
 import { Printer, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useCollection } from "@/hooks/useCollection";
@@ -12,10 +11,10 @@ import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 function ReportsPage() {
   const { settings } = useSettings();
-  const { data: logs } = useCollection("production_logs", [orderBy("date", "asc")]);
-  const { data: machines } = useCollection("machines", [orderBy("name")]);
-  const { data: workers } = useCollection("workers", [orderBy("name")]);
-  const { data: products } = useCollection("products", [orderBy("name")]);
+  const { data: logs } = useCollection("production_logs");
+  const { data: machines } = useCollection("machines");
+  const { data: workers } = useCollection("workers");
+  const { data: products } = useCollection("products");
   const machineMap = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
   const workerMap = useMemo(() => new Map(workers.map((w) => [w.id, w])), [workers]);
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -34,7 +33,7 @@ function ReportsPage() {
   const [workerFilter, setWorkerFilter] = useState("");
   const [shiftFilter, setShiftFilter] = useState("");
   const [productFilter, setProductFilter] = useState("");
-  const filtered = logs.filter((log) => {
+  const filtered = [...logs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.created_at ?? 0) - (b.created_at ?? 0))).filter((log) => {
     if (log.date < startDate || log.date > endDate) return false;
     if (machineFilter && log.machine_id !== machineFilter) return false;
     if (shiftFilter && log.shift !== shiftFilter) return false;
@@ -54,7 +53,7 @@ function ReportsPage() {
       Operator: log.operator_name,
       Products: log.items.map((i) => `${productMap.get(i.product_id)?.name ?? "?"} x${i.quantity}`).join(", "),
       Quantity: log.total_quantity,
-      Bill: log.total_bill
+      Value: log.total_bill
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -134,7 +133,7 @@ function ReportsPage() {
                   <th className="px-4 py-3">Workers</th>
                   <th className="px-4 py-3">Products</th>
                   <th className="px-4 py-3 text-right">Qty</th>
-                  <th className="px-4 py-3 text-right">Bill</th>
+                  <th className="px-4 py-3 text-right">Value</th>
                 </tr>
               </thead>
               <tbody>

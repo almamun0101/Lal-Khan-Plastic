@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { orderBy } from "firebase/firestore";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,7 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { SkeletonRow } from "@/components/ui/Skeleton";
 function WorkersPage() {
-  const { data: workers, loading } = useCollection("workers", [orderBy("name")]);
+  const { data: workers, loading } = useCollection("workers");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -66,7 +65,7 @@ function WorkersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-steel-800 dark:text-steel-50">Workers</h1>
-          <p className="mt-1 text-sm text-steel-500 dark:text-steel-400">{workers.length} of 12 workers registered</p>
+          <p className="mt-1 text-sm text-steel-500 dark:text-steel-400">{workers.length} workers registered</p>
         </div>
         <Button onClick={openCreate}><Plus className="h-4 w-4" /> Add Worker</Button>
       </div>
