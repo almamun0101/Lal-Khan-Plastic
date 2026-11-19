@@ -24,7 +24,7 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState("monthly");
 
   const series = useMemo(
-    () => (today ? buildSeries({ orders: data.sales_orders, payments: data.payments, expenses: data.expenses, today, period, weekStart: settings.week_starts_on }) : []),
+    () => (today ? buildSeries({ orders: data.sales_orders, payments: data.payments, expenses: data.expenses, workers: data.workers, logs: data.production_logs, staffPayments: data.staff_payments, settings, today, period, weekStart: settings.week_starts_on }) : []),
     [data, today, period, settings.week_starts_on]
   );
   const sum = (k) => series.reduce((s, r) => s + r[k], 0);
@@ -34,7 +34,7 @@ export default function AnalyticsPage() {
   const topProducts = [...biz.productStats].filter((p) => p.revenue > 0).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
 
   function exportExcel() {
-    const rows = series.map((r) => ({ Period: r.key, Sales: r.sales, Received: r.received, Expenses: r.expenses, "Delivery cost": r.deliveryCost, "Product cost": r.productCost, Profit: r.profit, "Net cash flow": r.net, Outstanding: r.outstanding, Orders: r.orders }));
+    const rows = series.map((r) => ({ Period: r.key, Sales: r.sales, Received: r.received, Expenses: r.expenses, "Delivery cost": r.deliveryCost, "Staff cost": r.staffEarned, "Product cost": r.productCost, Profit: r.profit, "Net cash flow": r.net, Outstanding: r.outstanding, Orders: r.orders }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), label);
     XLSX.writeFile(wb, `analytics_${period}.xlsx`);
@@ -51,8 +51,8 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard label="Sales (billed)" value={fmt(sum("sales"))} tone="blue" sub={`${sum("orders")} orders`} />
         <StatCard label="Received" value={fmt(sum("received"))} tone="green" valueTone="green" />
-        <StatCard label="Spent" value={fmt(sum("spent"))} tone="red" sub="Expenses + delivery" />
-        <StatCard label="Profit" value={fmt(sum("profit"))} tone="green" valueTone={sum("profit") < 0 ? "red" : "default"} hint="Sales − product cost − delivery − expenses" />
+        <StatCard label="Spent" value={fmt(sum("spent"))} tone="red" sub="Expenses + delivery + staff paid" />
+        <StatCard label="Profit" value={fmt(sum("profit"))} tone="green" valueTone={sum("profit") < 0 ? "red" : "default"} hint="Sales − product cost − delivery − expenses − staff cost" />
         <StatCard label="Outstanding now" value={fmt(series.at(-1)?.outstanding ?? 0)} tone="amber" hint="Billed − received, up to the end of the latest period" />
       </div>
 
@@ -110,7 +110,7 @@ export default function AnalyticsPage() {
         <CardBody className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="bg-steel-50 text-left text-xs uppercase tracking-wide text-steel-400 dark:bg-steel-900">
-              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3 text-right">Orders</th><th className="px-4 py-3 text-right">Sales</th><th className="px-4 py-3 text-right">Received</th><th className="px-4 py-3 text-right">Expenses</th><th className="px-4 py-3 text-right">Delivery</th><th className="px-4 py-3 text-right">Profit</th><th className="px-4 py-3 text-right">Outstanding</th></tr>
+              <tr><th className="px-4 py-3">Period</th><th className="px-4 py-3 text-right">Orders</th><th className="px-4 py-3 text-right">Sales</th><th className="px-4 py-3 text-right">Received</th><th className="px-4 py-3 text-right">Expenses</th><th className="px-4 py-3 text-right">Delivery</th><th className="px-4 py-3 text-right">Staff cost</th><th className="px-4 py-3 text-right">Profit</th><th className="px-4 py-3 text-right">Outstanding</th></tr>
             </thead>
             <tbody>
               {[...series].reverse().map((r) => (
@@ -121,6 +121,7 @@ export default function AnalyticsPage() {
                   <td className="px-4 py-2.5 text-right font-mono text-ok">{fmt(r.received)}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-danger">{fmt(r.expenses)}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-danger">{fmt(r.deliveryCost)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-danger">{fmt(r.staffEarned)}</td>
                   <td className={`px-4 py-2.5 text-right font-mono font-semibold ${r.profit < 0 ? "text-danger" : ""}`}>{fmt(r.profit)}</td>
                   <td className="px-4 py-2.5 text-right font-mono">{fmt(r.outstanding)}</td>
                 </tr>

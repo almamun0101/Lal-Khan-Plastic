@@ -33,7 +33,7 @@ export default function ProductionQueuePage() {
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(orderSchema),
-    defaultValues: { machine_id: "", product_id: "", target_quantity: 100, rate_per_minute: 1 },
+    defaultValues: { machine_id: "", product_id: "", target_quantity: 100, rate_per_minute: 1, reference: "" },
   });
 
   const selectedProductId = watch("product_id");
@@ -54,13 +54,14 @@ export default function ProductionQueuePage() {
         machine_id: values.machine_id,
         product_id: values.product_id,
         target_quantity: Number(values.target_quantity),
+        reference: (values.reference ?? "").trim(),
         rate_per_minute: Number(values.rate_per_minute),
         sequence: nextSequence,
         status: existingForMachine.length === 0 ? "active" : "queued",
         created_at: Date.now(),
       });
       toast.success(existingForMachine.length === 0 ? "Order added and set active" : "Order added to the queue");
-      reset({ machine_id: "", product_id: "", target_quantity: 100, rate_per_minute: 1 });
+      reset({ machine_id: "", product_id: "", target_quantity: 100, rate_per_minute: 1, reference: "" });
       setModalOpen(false);
     } catch (err) {
       toast.error(err.message || "Could not save the order");
@@ -133,7 +134,7 @@ export default function ProductionQueuePage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {isActive ? <Gauge className="h-4 w-4 text-instrument-600" /> : <Clock className="h-4 w-4 text-steel-400" />}
-                        <span className="font-semibold text-steel-800 dark:text-steel-100">{product?.name ?? "Unknown product"}</span>
+                        <span className="font-semibold text-steel-800 dark:text-steel-100">{order.reference ? `${order.reference} · ` : ""}{product?.name ?? "Unknown product"}</span>
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isActive ? "bg-instrument-600 text-white" : "bg-steel-200 text-steel-600 dark:bg-steel-700 dark:text-steel-300"}`}>
                           {isActive ? "Active" : "Queued"}
                         </span>
@@ -217,6 +218,10 @@ export default function ProductionQueuePage() {
               <option value="">Select product</option>
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </Select>
+          </div>
+          <div>
+            <Label>Order name / reference (optional)</Label>
+            <Input {...register("reference")} placeholder="e.g. Rahim, 5000 plates" />
           </div>
           <div>
             <Label>Target Quantity (pieces)</Label>

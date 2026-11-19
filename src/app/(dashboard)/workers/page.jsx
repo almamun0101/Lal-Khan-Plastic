@@ -1,71 +1,85 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { useCollection } from "@/hooks/useCollection";
-import { createDoc, updateDocById, deleteDocById } from "@/lib/firestore-service";
+import { useData } from "@/contexts/DataContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { createDoc, updateDocById, deleteDocById, newId, notifySaved, errorMessage } from "@/lib/firestore-service";
 import { workerSchema } from "@/lib/schemas";
+import { dailyRate } from "@/lib/payroll";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Label } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SkeletonRow } from "@/components/ui/Skeleton";
+
+const blank = (today) => ({ name: "", phone: "", status: "active", joining_date: today ?? "", salary_type: "monthly", salary_amount: "" });
+
 function WorkersPage() {
+  const { settings } = useSettings();
+  const { today } = useData();
   const { data: workers, loading } = useCollection("workers");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+  const idRef = useRef("");
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(workerSchema),
-    defaultValues: { name: "", employee_id: "", phone: "", status: "active" }
+    defaultValues: blank(""),
   });
+  const salaryType = watch("salary_type");
+  const salaryAmount = Number(watch("salary_amount")) || 0;
+
   function openCreate() {
     setEditingWorker(null);
-    reset({ name: "", employee_id: "", phone: "", status: "active" });
+    idRef.current = newId("workers");
+    reset(blank(today));
     setModalOpen(true);
   }
   function openEdit(w) {
     setEditingWorker(w);
-    reset({ name: w.name, employee_id: w.employee_id, phone: w.phone, status: w.status });
+    reset({ name: w.name, phone: w.phone ?? "", status: w.status, joining_date: w.joining_date ?? "", salary_type: w.salary_type ?? "monthly", salary_amount: w.salary_amount ?? "" });
     setModalOpen(true);
   }
   async function onSubmit(values) {
     try {
-      if (editingWorker) {
-        await updateDocById("workers", editingWorker.id, values);
-        toast.success("Worker updated");
-      } else {
-        await createDoc("workers", { ...values, created_at: Date.now() });
-        toast.success("Worker added");
-      }
+      const fields = { ...values, name: values.name.trim(), phone: (values.phone ?? "").trim(), salary_amount: Number(values.salary_amount) };
+      if (editingWorker) notifySaved(await updateDocById("workers", editingWorker.id, { ...fields, updated_at: Date.now() }), "Worker updated");
+      else notifySaved(await createDoc("workers", { ...fields, created_at: Date.now() }, idRef.current), "Worker added");
       setModalOpen(false);
-    } catch {
-      toast.error("Could not save worker");
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not save worker"));
     }
   }
   async function handleDelete() {
     if (!deleting) return;
     setBusy(true);
     try {
-      await deleteDocById("workers", deleting.id);
-      toast.success("Worker removed");
+      notifySaved(await deleteDocById("workers", deleting.id), "Worker removed");
       setDeleting(null);
-    } catch {
-      toast.error("Failed to remove worker");
+    } catch (err) {
+      toast.error(errorMessage(err, "Failed to remove worker"));
     } finally {
       setBusy(false);
     }
   }
-  return <div className="space-y-4">
+
+  const preview = dailyRate({ salary_type: salaryType, salary_amount: salaryAmount }, settings);
+
+  return (
+    <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-steel-800 dark:text-steel-50">Workers</h1>
-          <p className="mt-1 text-sm text-steel-500 dark:text-steel-400">{workers.length} workers registered</p>
+          <p className="mt-1 text-sm text-steel-500 dark:text-steel-400">{workers.length} workers registered · salary is worked out on the <Link href="/salary" className="text-instrument-600 hover:underline dark:text-gauge-300">Salary page</Link></p>
         </div>
         <Button onClick={openCreate}><Plus className="h-4 w-4" /> Add Worker</Button>
       </div>
@@ -76,57 +90,74 @@ function WorkersPage() {
             <thead className="bg-steel-50 text-left text-xs uppercase tracking-wide text-steel-400 dark:bg-steel-900">
               <tr>
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Employee ID</th>
                 <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Joined</th>
+                <th className="px-4 py-3 text-right">Salary</th>
+                <th className="px-4 py-3 text-right">Per day</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={5} />)}
-              {!loading && workers.map((w) => <tr key={w.id} className="border-t border-steel-100 dark:border-steel-700">
+              {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={7} />)}
+              {!loading && workers.map((w) => (
+                <tr key={w.id} className="border-t border-steel-100 dark:border-steel-700">
                   <td className="px-4 py-3 font-medium text-steel-700 dark:text-steel-200">{w.name}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{w.employee_id}</td>
-                  <td className="px-4 py-3">{w.phone}</td>
+                  <td className="px-4 py-3">{w.phone || "—"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{w.joining_date ? formatDate(w.joining_date) : <span className="text-gauge-600">Not set</span>}</td>
+                  <td className="px-4 py-3 text-right font-mono">{w.salary_amount ? <>{formatCurrency(w.salary_amount, settings.currency)}<span className="text-xs text-steel-400">{w.salary_type === "daily" ? " /day" : " /month"}</span></> : <span className="text-gauge-600">Not set</span>}</td>
+                  <td className="px-4 py-3 text-right font-mono">{formatCurrency(dailyRate(w, settings), settings.currency)}</td>
                   <td className="px-4 py-3">
-                    <span className={"rounded-full px-2 py-0.5 text-xs font-semibold " + (w.status === "active" ? "bg-ok/10 text-ok" : "bg-steel-200 text-steel-600 dark:bg-steel-700")}>
-                      {w.status}
-                    </span>
+                    <span className={"rounded-full px-2 py-0.5 text-xs font-semibold " + (w.status === "active" ? "bg-ok/10 text-ok" : "bg-steel-200 text-steel-600 dark:bg-steel-700")}>{w.status}</span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
-                      <Link href={`/workers/${w.id}`} className="rounded-md p-1.5 text-steel-400 hover:bg-steel-100 hover:text-instrument-600 dark:hover:bg-steel-700" aria-label="Open profile">
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                      <button onClick={() => openEdit(w)} className="rounded-md p-1.5 text-steel-400 hover:bg-steel-100 hover:text-instrument-600 dark:hover:bg-steel-700" aria-label="Edit">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => setDeleting(w)} className="rounded-md p-1.5 text-steel-400 hover:bg-danger/10 hover:text-danger" aria-label="Delete">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <Link href={`/workers/${w.id}`} className="rounded-md p-1.5 text-steel-400 hover:bg-steel-100 hover:text-instrument-600 dark:hover:bg-steel-700" aria-label="Open profile"><ArrowRight className="h-4 w-4" /></Link>
+                      <button onClick={() => openEdit(w)} className="rounded-md p-1.5 text-steel-400 hover:bg-steel-100 hover:text-instrument-600 dark:hover:bg-steel-700" aria-label="Edit"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => setDeleting(w)} className="rounded-md p-1.5 text-steel-400 hover:bg-danger/10 hover:text-danger" aria-label="Delete"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
-                </tr>)}
-              {!loading && workers.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-steel-400">No workers yet. Add your first one.</td></tr>}
+                </tr>
+              ))}
+              {!loading && workers.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-steel-400">No workers yet. Add your first one.</td></tr>}
             </tbody>
           </table>
         </CardBody>
       </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingWorker ? "Edit Worker" : "Add Worker"} size="sm">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingWorker ? "Edit Worker" : "Add Worker"} size="md">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <Label>Full Name</Label>
-            <Input {...register("name")} error={errors.name?.message} />
+            <Label>Full name *</Label>
+            <Input {...register("name")} error={errors.name?.message} autoFocus />
           </div>
-          <div>
-            <Label>Employee ID</Label>
-            <Input {...register("employee_id")} error={errors.employee_id?.message} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label>Phone</Label>
+              <Input {...register("phone")} inputMode="tel" />
+            </div>
+            <div>
+              <Label>Joining date *</Label>
+              <Input type="date" {...register("joining_date")} error={errors.joining_date?.message} />
+            </div>
           </div>
-          <div>
-            <Label>Phone</Label>
-            <Input {...register("phone")} error={errors.phone?.message} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label>Salary type</Label>
+              <Select {...register("salary_type")}>
+                <option value="monthly">Monthly salary</option>
+                <option value="daily">Per-day wage</option>
+              </Select>
+            </div>
+            <div>
+              <Label>{salaryType === "daily" ? "Wage per day *" : "Monthly salary *"}</Label>
+              <Input type="number" min="0" step="0.01" inputMode="decimal" {...register("salary_amount")} error={errors.salary_amount?.message} />
+            </div>
           </div>
+          <p className="rounded-lg bg-steel-50 px-3 py-2 text-xs text-steel-500 dark:bg-steel-900 dark:text-steel-400">
+            Pay per present day: <strong className="font-mono">{formatCurrency(preview, settings.currency)}</strong>
+            {salaryType === "monthly" && <> (monthly salary ÷ {settings.salary_days_per_month} days)</>}. A day counts as present when the worker is on a production duty. Covering an extra shift on the same date is overtime at {formatCurrency(settings.overtime_rate, settings.currency)}.
+          </p>
           <div>
             <Label>Status</Label>
             <Select {...register("status")}>
@@ -141,17 +172,10 @@ function WorkersPage() {
         </form>
       </Modal>
 
-      <Modal open={!!deleting} onClose={() => setDeleting(null)} title="Remove Worker?" size="sm">
-        <p className="text-sm text-steel-500 dark:text-steel-400">
-          {deleting?.name} will be removed from the worker list. Past production logs referencing them are kept.
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleting(null)}>Cancel</Button>
-          <Button variant="danger" loading={busy} onClick={handleDelete}>Remove</Button>
-        </div>
-      </Modal>
-    </div>;
+      <ConfirmDialog target={deleting} title="Remove worker?" confirmLabel="Remove" busy={busy} onCancel={() => setDeleting(null)} onConfirm={handleDelete}>
+        {deleting?.name} will be removed from the worker list. Past production logs and salary payments are kept, but their attendance will no longer count towards salary, so mark them Inactive instead if you only want to hide them.
+      </ConfirmDialog>
+    </div>
+  );
 }
-export {
-  WorkersPage as default
-};
+export { WorkersPage as default };

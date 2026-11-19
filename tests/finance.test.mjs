@@ -137,3 +137,23 @@ test("ledger running balance is positive when client owes", () => {
   const l = clientLedger(orders, [pay("a", "c1", "2026-01-02", 400)]);
   assert.deepEqual(l.map((e) => e.balance), [1000, 600]);
 });
+
+test("staff pay: cash uses what was paid, profit uses what was earned", () => {
+  const cl = [{ id: "c1", name: "A" }];
+  const orders = [order("o1", "c1", "2026-03-01", [item(1, 5000, 0)])];
+  const payments = [pay("a", "c1", "2026-03-02", 5000, { order_id: "o1" })];
+  const workers = [{ id: "w1", name: "Karim", salary_type: "monthly", salary_amount: 12000, joining_date: "2026-01-01" }];
+  const logs = [{ date: "2026-03-05", shift: "day", worker1_id: "w1" }, { date: "2026-03-05", shift: "night", worker1_id: "w1" }, { date: "2026-03-06", shift: "day", worker1_id: "w1" }];
+  const staffPayments = [{ id: "s1", worker_id: "w1", type: "advance", amount: 300, date: "2026-03-07" }];
+  const settings = { overtime_rate: 300, salary_days_per_month: 30, opening_balance: 0 };
+  const biz = computeBusiness({ clients: cl, orders, payments, workers, logs, staffPayments, settings, today: "2026-03-10" });
+  assert.equal(biz.staffEarned, 400 + 300 + 400); // 2 present days + 1 overtime shift
+  assert.equal(biz.staffPaid, 300);
+  assert.equal(biz.moneySpent, 300);
+  assert.equal(biz.availableCash, 5000 - 300);
+  assert.equal(biz.netProfit, 5000 - 1100);
+  assert.equal(biz.staffOwed, 800);
+  const s = buildSeries({ orders, payments, expenses: [], workers, logs, staffPayments, settings, today: "2026-03-10", period: "monthly", count: 1 });
+  assert.equal(s[0].profit, 5000 - 1100);
+  assert.equal(s[0].spent, 300);
+});

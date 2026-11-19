@@ -27,7 +27,7 @@ const LEVEL = {
 
 export default function DashboardPage() {
   const { settings } = useSettings();
-  const { data, biz, today, loading, clientById } = useData();
+  const { data, biz, today, loading, clientById, workerById } = useData();
   const cur = settings.currency;
   const fmt = (v) => formatCurrency(v, cur);
   const [orderModal, setOrderModal] = useState(false);
@@ -35,10 +35,10 @@ export default function DashboardPage() {
 
   const alerts = useMemo(() => buildAlerts(biz, settings, today ?? ""), [biz, settings, today]);
   const series = useMemo(
-    () => (today ? buildSeries({ orders: data.sales_orders, payments: data.payments, expenses: data.expenses, today, period: "daily", count: 14, weekStart: settings.week_starts_on }) : []),
+    () => (today ? buildSeries({ orders: data.sales_orders, payments: data.payments, expenses: data.expenses, workers: data.workers, logs: data.production_logs, staffPayments: data.staff_payments, settings, today, period: "daily", count: 14, weekStart: settings.week_starts_on }) : []),
     [data, today, settings.week_starts_on]
   );
-  const feed = useMemo(() => buildTransactions({ payments: data.payments, expenses: data.expenses, orders: data.sales_orders, clientById }).slice(0, 8), [data, clientById]);
+  const feed = useMemo(() => buildTransactions({ payments: data.payments, expenses: data.expenses, orders: data.sales_orders, staffPayments: data.staff_payments, workerById, clientById }).slice(0, 8), [data, clientById, workerById]);
   const overdue = useMemo(() => biz.openDue.filter((r) => r.overdue).sort((a, b) => b.days_overdue - a.days_overdue).slice(0, 6), [biz.openDue]);
   const deliveries = useMemo(() => [...biz.pendingDeliveries].sort((a, b) => (b.late - a.late) || ((a.order.expected_delivery_date || "9999") < (b.order.expected_delivery_date || "9999") ? -1 : 1)).slice(0, 6), [biz.pendingDeliveries]);
 
@@ -90,10 +90,10 @@ export default function DashboardPage() {
           <StatCard label="Total sales (billed)" value={fmt(biz.salesTotal)} icon={ShoppingCart} tone="blue" sub={`${fmt(monthSales)} this month`} hint="Value of all orders. Not money in hand." href="/orders" />
           <StatCard label="Payments received" value={fmt(biz.receivedTotal)} icon={ArrowDownToLine} tone="green" valueTone="green" sub={`${fmt(monthReceived)} this month`} hint="Money actually collected." href="/payments" progress={k.collection_rate} />
           <StatCard label="Outstanding dues" value={fmt(biz.receivables)} icon={Hourglass} tone="red" valueTone={biz.receivables > 0 ? "red" : "default"} sub={biz.collections.overdue > 0 ? `${fmt(biz.collections.overdue)} overdue` : "None overdue"} hint="Billed but not yet paid." href="/finance" />
-          <StatCard label="Available cash" value={fmt(biz.availableCash)} icon={Banknote} tone="green" valueTone={biz.availableCash < 0 ? "red" : "green"} sub={`Spent ${fmt(biz.moneySpent)}`} hint="Opening balance + received − spent." href="/finance" />
+          <StatCard label="Available cash" value={fmt(biz.availableCash)} icon={Banknote} tone="green" valueTone={biz.availableCash < 0 ? "red" : "green"} sub={`Spent ${fmt(biz.moneySpent)} (incl. staff ${fmt(biz.staffPaid)})`} hint="Opening balance + received − spent." href="/finance" />
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Net profit" value={fmt(biz.netProfit)} icon={TrendingUp} tone="green" valueTone={biz.netProfit < 0 ? "red" : "default"} sub={k.profit_margin != null ? `${k.profit_margin}% margin` : undefined} hint="Sales − product cost − delivery − expenses." href="/analytics" />
+          <StatCard label="Net profit" value={fmt(biz.netProfit)} icon={TrendingUp} tone="green" valueTone={biz.netProfit < 0 ? "red" : "default"} sub={k.profit_margin != null ? `${k.profit_margin}% margin` : undefined} hint="Sales − product cost − delivery − expenses − staff pay earned." href="/analytics" />
           <StatCard label="Expenses" value={fmt(biz.expensesTotal)} icon={ArrowUpFromLine} tone="red" sub={`Delivery costs ${fmt(biz.deliveryCosts)}`} href="/expenses" />
           <StatCard label="Next 7 days" value={fmt(biz.collections.next7)} icon={Hourglass} tone="amber" sub={`${fmt(biz.collections.next30)} in 8 to 30 days`} hint="Expected collections by due date." href="/finance" />
           <StatCard label="Pending orders" value={biz.counts.pending} icon={Truck} tone="amber" sub={`${biz.counts.delivered} delivered · ${biz.counts.clients} clients`} href="/orders?filter=open" />
@@ -187,7 +187,7 @@ export default function DashboardPage() {
                 <tr key={t.id} className="border-t border-steel-100 first:border-t-0 dark:border-steel-700">
                   <td className="px-4 py-3 whitespace-nowrap text-steel-500">{formatDate(t.date)}</td>
                   <td className="px-4 py-3"><Link href={t.href} className="hover:underline">{t.label}</Link></td>
-                  <td className="px-4 py-3">{t.type === "payment" && <MethodBadge method={t.method} />}</td>
+                  <td className="px-4 py-3">{t.method && <MethodBadge method={t.method} />}</td>
                   <td className={`px-4 py-3 text-right font-mono font-semibold ${t.direction === "in" ? "text-ok" : "text-danger"}`}>{t.direction === "in" ? "+" : "−"}{fmt(t.amount)}</td>
                 </tr>
               ))}

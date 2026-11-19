@@ -35,9 +35,11 @@ async function seed() {
 
   const workers = Array.from({ length: 12 }).map((_, i) => ({
     name: `Worker ${i + 1}`,
-    employee_id: `EMP-${String(i + 1).padStart(3, "0")}`,
     phone: "01700000000",
     status: "active",
+    joining_date: new Date().toISOString().slice(0, 10),
+    salary_type: "monthly",
+    salary_amount: 12000,
   }));
 
   const products = [
@@ -73,6 +75,8 @@ async function seed() {
     credit_days: 15,
     low_cash_threshold: 0,
     week_starts_on: 6,
+    overtime_rate: 300,
+    salary_days_per_month: 30,
     business_phone: "",
     business_address: "",
   }, { merge: true });

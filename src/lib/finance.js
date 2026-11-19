@@ -11,8 +11,9 @@
 //   Money received        = sum of every payment actually recorded
 //   Outstanding / due     = billed − what has been paid against it (per order)
 //   Available cash        = opening balance + money received − money spent
-//   Money spent           = expenses + delivery costs paid to couriers
-//   Net profit            = total sales − product cost − delivery cost − expenses
+//   Money spent           = expenses + delivery costs + staff payments (advances and salaries paid)
+//   Net profit            = total sales − product cost − delivery cost − expenses − staff pay earned
+//                           (staff pay is counted when EARNED, cash when PAID)
 //
 // Cancelled orders are ignored by every calculation. A payment is never lost:
 // money paid against an order that is later cancelled stays in "received" and
@@ -20,6 +21,7 @@
 // =============================================================================
 
 import { addDays, diffDays, parseISODate, round2, startOfWeek, toISODate } from "./utils.js";
+import { staffSummary } from "./payroll.js";
 
 const num = (v) => {
   const n = Number(v);
@@ -217,6 +219,8 @@ export function computeBusiness({
   expenses = [],
   logs = [],
   products = [],
+  workers = [],
+  staffPayments = [],
   settings = {},
   today = "",
 }) {
@@ -323,13 +327,17 @@ export function computeBusiness({
   const deliveryCosts = round2(activeOrders.reduce((s, o) => s + o.delivery_cost, 0));
   const expensesTotal = round2(expenses.reduce((s, e) => s + Math.max(0, num(e.amount)), 0));
   const receivedTotal = round2(payments.reduce((s, p) => s + Math.max(0, num(p.amount)), 0));
-  const moneySpent = round2(expensesTotal + deliveryCosts);
+  const staff = staffSummary({ workers, logs, staffPayments, settings });
+  const staffEarned = staff.earned;
+  const staffPaid = staff.paid;
+  const salaryExpenseTotal = round2(expenses.filter((e) => e.category === "Salary").reduce((s, e) => s + Math.max(0, num(e.amount)), 0));
+  const moneySpent = round2(expensesTotal + deliveryCosts + staffPaid);
   const opening = num(settings.opening_balance);
   const availableCash = round2(opening + receivedTotal - moneySpent);
   const receivables = round2(clientStats.reduce((s, c) => s + c.due, 0));
   const clientCredit = round2(clientStats.reduce((s, c) => s + c.credit, 0));
   const grossProfit = round2(salesTotal - productCost);
-  const netProfit = round2(grossProfit - deliveryCosts - expensesTotal);
+  const netProfit = round2(grossProfit - deliveryCosts - expensesTotal - staffEarned);
 
   const receivedByMethod = { cash: 0, bkash: 0, bank: 0, other: 0 };
   payments.forEach((p) => {
@@ -442,6 +450,12 @@ export function computeBusiness({
     deliveryCosts,
     productCost,
     moneySpent,
+    staffEarned,
+    staffPaid,
+    staffOwed: round2(staffEarned - staffPaid),
+    staffBalances: staff.balances,
+    overAdvance: staff.balances.filter((b) => b.balance < -0.004),
+    salaryExpenseTotal,
     openingBalance: opening,
     availableCash,
     grossProfit,
@@ -524,11 +538,11 @@ export function bucketKeys(today, period, count, weekStart = 6) {
  *  - received lands on the payment date; expenses on the expense date
  *  - outstanding is the running balance (billed − received) at the end of each bucket
  */
-export function buildSeries({ orders = [], payments = [], expenses = [], today, period = "monthly", count, weekStart = 6 }) {
+export function buildSeries({ orders = [], payments = [], expenses = [], workers = [], logs = [], staffPayments = [], settings = {}, today, period = "monthly", count, weekStart = 6 }) {
   const n = count ?? PERIODS.find((p) => p.value === period)?.count ?? 12;
   const keys = bucketKeys(today, period, n, weekStart);
   const index = new Map(keys.map((k, i) => [k, i]));
-  const rows = keys.map((k) => ({ key: k, label: bucketLabel(k, period), sales: 0, received: 0, expenses: 0, deliveryCost: 0, productCost: 0, orders: 0, profit: 0, outstanding: 0, net: 0 }));
+  const rows = keys.map((k) => ({ key: k, label: bucketLabel(k, period), sales: 0, received: 0, expenses: 0, deliveryCost: 0, productCost: 0, orders: 0, profit: 0, outstanding: 0, net: 0, staffEarned: 0, staffPaid: 0 }));
   const first = keys[0];
 
   let billedBefore = 0;
@@ -561,6 +575,16 @@ export function buildSeries({ orders = [], payments = [], expenses = [], today, 
     if (k && index.has(k)) rows[index.get(k)].expenses += Math.max(0, num(e.amount));
   });
 
+  const staff = staffSummary({ workers, logs, staffPayments, settings });
+  staff.earningsByDate.forEach(({ date, amount }) => {
+    const k = bucketKey(date, period, weekStart);
+    if (k && index.has(k)) rows[index.get(k)].staffEarned += amount;
+  });
+  staffPayments.forEach((p) => {
+    const k = bucketKey(p.date, period, weekStart);
+    if (k && index.has(k)) rows[index.get(k)].staffPaid += Math.max(0, num(p.amount));
+  });
+
   let running = billedBefore - receivedBefore;
   rows.forEach((r) => {
     r.sales = round2(r.sales);
@@ -568,8 +592,10 @@ export function buildSeries({ orders = [], payments = [], expenses = [], today, 
     r.expenses = round2(r.expenses);
     r.deliveryCost = round2(r.deliveryCost);
     r.productCost = round2(r.productCost);
-    r.spent = round2(r.expenses + r.deliveryCost);
-    r.profit = round2(r.sales - r.productCost - r.deliveryCost - r.expenses);
+    r.staffEarned = round2(r.staffEarned);
+    r.staffPaid = round2(r.staffPaid);
+    r.spent = round2(r.expenses + r.deliveryCost + r.staffPaid);
+    r.profit = round2(r.sales - r.productCost - r.deliveryCost - r.expenses - r.staffEarned);
     r.net = round2(r.received - r.spent); // cash flow for the bucket
     running = round2(running + r.sales - r.received);
     r.outstanding = running;
@@ -597,13 +623,16 @@ export function clientLedger(orders, payments) {
 }
 
 // Newest-first feed of money moving in and out of the business.
-export function buildTransactions({ payments = [], expenses = [], orders = [], clientById = new Map() }) {
+export function buildTransactions({ payments = [], expenses = [], orders = [], staffPayments = [], workerById = new Map(), clientById = new Map() }) {
   const feed = [];
   payments.forEach((p) =>
     feed.push({ id: `p-${p.id}`, type: "payment", direction: "in", date: p.date || "", created_at: num(p.created_at), amount: Math.max(0, num(p.amount)), method: p.method, label: `Payment from ${clientById.get(p.client_id)?.name ?? "client"}`, href: `/clients/${p.client_id}` })
   );
   expenses.forEach((e) =>
     feed.push({ id: `e-${e.id}`, type: "expense", direction: "out", date: e.date || "", created_at: num(e.created_at), amount: Math.max(0, num(e.amount)), method: e.method || "", label: `${e.name} · ${e.category}`, href: "/expenses" })
+  );
+  staffPayments.forEach((p) =>
+    feed.push({ id: `s-${p.id}`, type: "staff", direction: "out", date: p.date || "", created_at: num(p.created_at), amount: Math.max(0, num(p.amount)), method: p.method || "", label: `${p.type === "advance" ? "Advance" : "Salary"} · ${workerById.get(p.worker_id)?.name ?? "worker"}`, href: "/salary" })
   );
   orders.filter((o) => !isCancelled(o) && num(o.delivery_cost) > 0).forEach((o) =>
     feed.push({ id: `d-${o.id}`, type: "delivery_cost", direction: "out", date: o.delivery_date || o.order_date || "", created_at: num(o.created_at), amount: num(o.delivery_cost), method: "", label: `Delivery cost · ${o.order_no}`, href: `/orders/${o.id}` })
@@ -651,6 +680,13 @@ export function buildAlerts(biz, settings = {}, today = "") {
   }
   if (biz.health.orphan_payments || biz.health.orders_without_client) {
     alerts.push({ id: "orphans", level: "warn", title: "Records pointing to a missing client", detail: `${biz.health.orphan_payments} payment(s), ${biz.health.orders_without_client} order(s). A client was deleted after they had activity.`, href: "/clients" });
+  }
+  if (biz.overAdvance?.length) {
+    const sum = biz.overAdvance.reduce((s, b) => s - b.balance, 0);
+    alerts.push({ id: "over-advance", level: "warn", title: `${biz.overAdvance.length} worker${biz.overAdvance.length > 1 ? "s" : ""} took more advance than earned`, detail: `${money(sum)} will be deducted from their coming salary. ${biz.overAdvance.slice(0, 3).map((b) => b.worker.name).join(", ")}`, href: "/salary" });
+  }
+  if (biz.salaryExpenseTotal > 0 && biz.staffPaid > 0) {
+    alerts.push({ id: "salary-double", level: "info", title: "Salary may be counted twice", detail: `${money(biz.salaryExpenseTotal)} is entered as "Salary" expenses and staff payments are also recorded on the Salary page. Keep only one.`, href: "/expenses" });
   }
   const order = { danger: 0, warn: 1, info: 2 };
   return alerts.sort((a, b) => order[a.level] - order[b.level]);

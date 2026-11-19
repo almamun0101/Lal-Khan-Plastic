@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ClipboardList, ListChecks, Users, Cog, Package, FileBarChart, Settings, Factory,
-  ListOrdered, CalendarDays, TrendingUp, Receipt, X, UserRound, ShoppingCart, Wallet, Landmark, BarChart3, Gauge, Layers,
+  ListOrdered, CalendarDays, TrendingUp, Receipt, X, UserRound, ShoppingCart, Wallet, Landmark, BarChart3, Gauge, Layers, CalendarRange, HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ const groups = [
       { href: "/production", label: "Production Count", icon: ClipboardList },
       { href: "/production/logs", label: "Production Logs", icon: ListChecks },
       { href: "/daily", label: "Daily", icon: CalendarDays },
+      { href: "/production/calendar", label: "Production Calendar", icon: CalendarRange },
       { href: "/production/queue", label: "Production Queue", icon: ListOrdered },
       { href: "/production/overview", label: "Floor Overview", icon: Gauge },
       { href: "/income", label: "Production Value", icon: TrendingUp },
@@ -38,11 +39,17 @@ const groups = [
     ],
   },
   {
+    title: "Team",
+    items: [
+      { href: "/workers", label: "Workers", icon: Users },
+      { href: "/salary", label: "Salary", icon: HandCoins },
+    ],
+  },
+  {
     title: "Setup",
     items: [
       { href: "/products", label: "Products", icon: Package },
       { href: "/machines", label: "Machines", icon: Cog },
-      { href: "/workers", label: "Workers", icon: Users },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },

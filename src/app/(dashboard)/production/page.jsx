@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2, Save, Sparkles, Gauge } from "lucide-react";
@@ -11,13 +11,39 @@ import { useCollection } from "@/hooks/useCollection";
 import { createDoc, errorMessage, newId, notifySaved } from "@/lib/firestore-service";
 import { productionEntrySchema } from "@/lib/schemas";
 import { todayISO, detectShift, formatCurrency } from "@/lib/utils";
-import { getLastCountForMachineProduct, getMachineCurrentState } from "@/lib/production-helpers";
+import { getLastCountForMachineProduct, getMachineCurrentState, getOpenOrder, getOrderProgress, getLastCrew, orderLabel } from "@/lib/production-helpers";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input, Label } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 
 const EMPTY_ITEMS = [{ product_id: "", count: 0 }];
+
+// Shows which order this counter reading goes toward and how far along it is.
+function OrderBox({ order, hasSelection, produced, logs, productMap, className = "" }) {
+  if (!hasSelection) return null;
+  if (!order) {
+    return <p className={`rounded-lg bg-steel-50 px-3 py-2 text-xs text-steel-400 dark:bg-steel-900 ${className}`}>No open order in the Production Queue for this machine and product. The count is still saved.</p>;
+  }
+  const done = getOrderProgress(order, logs);
+  const after = done + produced;
+  const target = Number(order.target_quantity) || 0;
+  const remaining = Math.max(0, target - after);
+  const pct = target > 0 ? Math.min(100, (after / target) * 100) : 0;
+  const over = after > target ? after - target : 0;
+  return (
+    <div className={`rounded-lg border border-instrument-500/20 bg-instrument-500/5 px-3 py-2 text-xs ${className}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-semibold text-instrument-700 dark:text-instrument-400">{orderLabel(order, productMap)}</span>
+        <span className="font-mono text-steel-600 dark:text-steel-300">
+          target {target.toLocaleString()} · done before {done.toLocaleString()} · after this entry <strong>{after.toLocaleString()}</strong> ·{" "}
+          {over > 0 ? <span className="text-gauge-700">{over.toLocaleString()} over target</span> : <>remaining <strong>{remaining.toLocaleString()}</strong></>}
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-steel-200 dark:bg-steel-700"><div className="h-full rounded-full bg-instrument-500" style={{ width: `${pct}%` }} /></div>
+    </div>
+  );
+}
 
 export default function ProductionEntryPage() {
   const { user } = useAuth();
@@ -34,6 +60,9 @@ export default function ProductionEntryPage() {
   // Newest-first: getLastCountForMachineProduct and getMachineCurrentState
   // both expect this ordering so they can just take the first match.
   const { data: logs } = useCollection("production_logs");
+  const { data: orders } = useCollection("orders");
+  const crewTouched = useRef(false);
+  const [crewAuto, setCrewAuto] = useState(false);
 
   const {
     register,
@@ -66,6 +95,19 @@ export default function ProductionEntryPage() {
   const { fields, append, remove, replace } = useFieldArray({ control, name: "items" });
   const machineId = watch("machine_id");
   const items = watch("items");
+  const shift = watch("shift");
+
+  // Pre-fill the crew with whoever was on this machine last time (same shift if
+  // possible). Stops as soon as the operator picks someone themselves.
+  useEffect(() => {
+    if (!machineId || crewTouched.current) return;
+    const crew = getLastCrew(logs, machineId, shift);
+    if (!crew) return;
+    const ok = (id) => (workers.some((w) => w.id === id) ? id : "");
+    setValue("worker1_id", ok(crew.worker1_id));
+    setValue("worker2_id", ok(crew.worker2_id));
+    setCrewAuto(true);
+  }, [machineId, shift, logs, workers, setValue]);
 
   // Runs once after mount to fill in today's date (only if still blank, so
   // it never clobbers a date the operator has already changed), and on every
@@ -148,6 +190,7 @@ export default function ProductionEntryPage() {
           const end = Number(item.count);
           return {
             product_id: item.product_id,
+            order_id: getOpenOrder(orders, values.machine_id, item.product_id)?.id ?? "",
             start_count: start,
             end_count: end,
             quantity: end - start,
@@ -162,6 +205,8 @@ export default function ProductionEntryPage() {
       if (!idRef.current) idRef.current = newId("production_logs");
       notifySaved(await createDoc("production_logs", log, idRef.current), "Production count saved");
       idRef.current = "";
+      crewTouched.current = false;
+      setCrewAuto(false);
       reset({
         date: todayISO(),
         shift: detectShift(settings.day_shift_start, settings.night_shift_start),
@@ -240,22 +285,23 @@ export default function ProductionEntryPage() {
           <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <Label>Worker 1</Label>
-              <Select {...register("worker1_id")} error={errors.worker1_id?.message}>
+              <Select {...register("worker1_id", { onChange: () => { crewTouched.current = true; setCrewAuto(false); } })} error={errors.worker1_id?.message}>
                 <option value="">Select worker</option>
-                {workers.map((w) => <option key={w.id} value={w.id}>{w.name} · {w.employee_id}</option>)}
+                {workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </Select>
             </div>
             <div>
               <Label>Worker 2</Label>
-              <Select {...register("worker2_id")} error={errors.worker2_id?.message}>
+              <Select {...register("worker2_id", { onChange: () => { crewTouched.current = true; setCrewAuto(false); } })} error={errors.worker2_id?.message}>
                 <option value="">Select worker</option>
-                {workers.map((w) => <option key={w.id} value={w.id}>{w.name} · {w.employee_id}</option>)}
+                {workers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </Select>
             </div>
             <div>
               <Label>Operator</Label>
               <Input value={user?.email ?? ""} disabled className="opacity-70" />
             </div>
+            {crewAuto && <p className="text-xs text-steel-400 sm:col-span-3">Filled in from the last entry on this machine. Change it if someone else is on duty today. Anyone named here is counted present for salary, and covering a second shift on the same date is counted as overtime.</p>}
           </CardBody>
         </Card>
 
@@ -293,7 +339,7 @@ export default function ProductionEntryPage() {
                   />
                 </div>
                 <div className="w-full sm:w-32">
-                  <Label>Produced</Label>
+                  <Label>Difference (produced)</Label>
                   <p className={`rounded-lg px-3 py-2.5 font-mono text-sm ${producedPerRow[index] < 0 ? "bg-danger/10 text-danger" : "bg-steel-50 text-steel-700 dark:bg-steel-900 dark:text-steel-200"}`}>
                     {producedPerRow[index] ?? 0} pcs
                   </p>
@@ -308,6 +354,14 @@ export default function ProductionEntryPage() {
                 >
                   <Trash2 className="h-4 w-4 text-danger" />
                 </Button>
+                <OrderBox
+                  className="w-full sm:basis-full"
+                  order={machineId && items?.[index]?.product_id ? getOpenOrder(orders, machineId, items[index].product_id) : null}
+                  hasSelection={!!(machineId && items?.[index]?.product_id)}
+                  produced={Math.max(0, producedPerRow[index] ?? 0)}
+                  logs={logs}
+                  productMap={productMap}
+                />
               </div>
             ))}
 

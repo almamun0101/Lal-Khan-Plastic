@@ -29,10 +29,21 @@ const productionEntrySchema = z
   });
 
 const workerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  employee_id: z.string().min(1, "Employee ID is required"),
-  phone: z.string().min(1, "Phone is required"),
+  name: z.string().trim().min(1, "Name is required"),
+  phone: z.string().trim().optional(),
   status: z.enum(["active", "inactive"]),
+  joining_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the joining date"),
+  salary_type: z.enum(["monthly", "daily"]),
+  salary_amount: z.coerce.number({ invalid_type_error: "Enter the salary" }).min(0, "Can't be negative").max(1e8, "That looks too large"),
+});
+
+const staffPaymentSchema = z.object({
+  worker_id: z.string().min(1, "Select a worker"),
+  type: z.enum(["advance", "salary"]),
+  amount: z.coerce.number({ invalid_type_error: "Enter an amount" }).positive("Must be greater than 0").max(1e8, "That looks too large"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date"),
+  method: z.enum(["cash", "bkash", "bank", "other"]),
+  note: z.string().optional(),
 });
 
 const machineSchema = z.object({
@@ -54,6 +65,7 @@ const orderSchema = z.object({
   product_id: z.string().min(1, "Select a product"),
   target_quantity: z.coerce.number().positive("Must be greater than 0"),
   rate_per_minute: z.coerce.number().positive("Must be greater than 0"),
+  reference: z.string().trim().optional(), // free-text label, e.g. the client or "5000 plates for Rahim"
 });
 
 const expenseSchema = z.object({
@@ -143,5 +155,6 @@ export {
   productSchema,
   productionEntrySchema,
   productionLineItemSchema,
+  staffPaymentSchema,
   workerSchema,
 };

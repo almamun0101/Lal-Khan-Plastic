@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test tests/finance.test.mjs"
+    "test": "node --test tests/finance.test.mjs tests/payroll.test.mjs"
   },
   "dependencies": {
     "next": "15.5.20",

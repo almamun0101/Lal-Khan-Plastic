@@ -54,6 +54,8 @@ export const DEFAULT_SETTINGS = {
   credit_days: 15, // default days a client has to pay after the order date
   low_cash_threshold: 0, // alert when available cash drops below this
   week_starts_on: 6, // 6 = Saturday (common in Bangladesh)
+  overtime_rate: 300, // paid per extra shift a worker covers on the same date
+  salary_days_per_month: 30, // monthly salary ÷ this = daily rate
   business_phone: "",
   business_address: "",
 };

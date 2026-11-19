@@ -94,7 +94,7 @@ export default function ExpensesPage() {
         <StatCard label={cat || from || to ? "Expenses (filtered)" : "Total expenses"} value={formatCurrency(total, cur)} tone="red" valueTone="red" sub={`${filtered.length} entries`} />
         <StatCard label="This month" value={formatCurrency(thisMonth, cur)} tone="red" />
         <StatCard label="Delivery costs (orders)" value={formatCurrency(biz.deliveryCosts, cur)} tone="gray" hint="From orders; already counted in money spent." />
-        <StatCard label="Total money spent" value={formatCurrency(biz.moneySpent, cur)} tone="red" hint="Expenses + delivery costs." />
+        <StatCard label="Total money spent" value={formatCurrency(biz.moneySpent, cur)} tone="red" hint="Expenses + delivery costs + staff advances/salaries." />
       </div>
 
       <Card>
@@ -146,7 +146,7 @@ export default function ExpensesPage() {
             <div><Label>Date</Label><Input type="date" {...register("date")} error={errors.date?.message} max={today ?? undefined} /></div>
           </div>
           <div><Label>Notes (optional)</Label><Input {...register("notes")} /></div>
-          <p className="text-xs text-steel-400">If a product's unit cost on orders already includes raw material, don't also enter that material here, or it will be counted twice in profit.</p>
+          <p className="text-xs text-steel-400">Worker salaries and advances go on the Salary page, not here (or they are counted twice). If a product's unit cost on orders already includes raw material, don't also enter that material here, or it will be counted twice in profit.</p>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
             <Button type="submit" loading={isSubmitting}>{editing ? "Save Changes" : "Add Expense"}</Button>

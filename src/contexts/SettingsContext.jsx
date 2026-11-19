@@ -12,7 +12,7 @@ const SettingsContext = createContext(undefined);
 // stray "" or null can never turn into NaN in a calculation.
 function sanitize(raw) {
   const s = { ...DEFAULT_SETTINGS, ...raw };
-  ["opening_balance", "credit_days", "low_cash_threshold", "week_starts_on"].forEach((k) => {
+  ["opening_balance", "credit_days", "low_cash_threshold", "week_starts_on", "overtime_rate", "salary_days_per_month"].forEach((k) => {
     const n = Number(s[k]);
     s[k] = Number.isFinite(n) ? n : DEFAULT_SETTINGS[k];
   });

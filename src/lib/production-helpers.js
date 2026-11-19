@@ -41,13 +41,46 @@ export function getMachineCurrentState(logs, machineId) {
 export function getOrderProgress(order, logs) {
   let produced = 0;
   for (const log of logs) {
-    if (log.machine_id !== order.machine_id) continue;
-    if (log.created_at < order.created_at) continue;
-    for (const item of log.items) {
+    for (const item of log.items ?? []) {
+      if (item.order_id) {
+        // New entries record exactly which order they counted toward.
+        if (item.order_id === order.id) produced += item.quantity;
+        continue;
+      }
+      // Older entries (no order_id): match by machine + product since the order was created.
+      if (log.machine_id !== order.machine_id) continue;
+      if (log.created_at < order.created_at) continue;
       if (item.product_id === order.product_id) produced += item.quantity;
     }
   }
   return produced;
+}
+
+/**
+ * The order a new count on this machine + product counts toward: the first
+ * order in the queue that isn't completed. Returns undefined if none is open.
+ */
+export function getOpenOrder(orders, machineId, productId) {
+  return [...orders]
+    .filter((o) => o.machine_id === machineId && o.product_id === productId && o.status !== "completed")
+    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))[0];
+}
+
+/**
+ * The crew (Worker 1 / Worker 2) used the last time this machine was logged,
+ * preferring the same shift. Used to pre-fill the crew so it only needs
+ * changing when someone different is on duty. Expects logs newest-first.
+ */
+export function getLastCrew(logs, machineId, shift) {
+  const same = logs.find((l) => l.machine_id === machineId && l.shift === shift && (l.worker1_id || l.worker2_id));
+  const any = same ?? logs.find((l) => l.machine_id === machineId && (l.worker1_id || l.worker2_id));
+  return any ? { worker1_id: any.worker1_id ?? "", worker2_id: any.worker2_id ?? "", sameShift: !!same } : null;
+}
+
+export function orderLabel(order, productMap) {
+  if (!order) return "";
+  const name = productMap?.get(order.product_id)?.name ?? "product";
+  return order.reference ? `${order.reference}` : `Order #${order.sequence ?? "?"} · ${name}`;
 }
 
 /**

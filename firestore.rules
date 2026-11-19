@@ -37,6 +37,16 @@ service cloud.firestore {
         && request.resource.data.date is string;
     }
 
+    match /staff_payments/{id} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.worker_id is string
+        && request.resource.data.type in ['advance', 'salary']
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.date is string;
+    }
+
     match /expenses/{id} {
       allow read, delete: if isSignedIn();
       allow create, update: if isSignedIn()

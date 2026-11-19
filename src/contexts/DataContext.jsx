@@ -36,6 +36,7 @@ const SORTERS = {
   orders: (a, b) => num(a.sequence) - num(b.sequence) || num(a.created_at) - num(b.created_at),
   expenses: byDateDesc,
   payments: byDateDesc,
+  staff_payments: byDateDesc,
   sales_orders: (a, b) => {
     const da = a.order_date ?? "";
     const db_ = b.order_date ?? "";
@@ -128,6 +129,8 @@ function DataProvider({ children }) {
         expenses: data.expenses,
         logs: data.production_logs,
         products: data.products,
+        workers: data.workers,
+        staffPayments: data.staff_payments,
         settings,
         today: today ?? "",
       }),

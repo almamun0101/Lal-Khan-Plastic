@@ -20,15 +20,16 @@ export default function FinancePage() {
   const fmt = (v) => formatCurrency(v, cur);
 
   const series = useMemo(
-    () => (today ? buildSeries({ orders: data.sales_orders, payments: data.payments, expenses: data.expenses, today, period: "monthly", count: 12, weekStart: settings.week_starts_on }) : []),
+    () => (today ? buildSeries({ orders: data.sales_orders, payments: data.payments, expenses: data.expenses, workers: data.workers, logs: data.production_logs, staffPayments: data.staff_payments, settings, today, period: "monthly", count: 12, weekStart: settings.week_starts_on }) : []),
     [data, today, settings.week_starts_on]
   );
   const byCategory = useMemo(() => {
     const m = new Map();
     data.expenses.forEach((e) => m.set(e.category, (m.get(e.category) ?? 0) + Number(e.amount || 0)));
     if (biz.deliveryCosts > 0) m.set("Delivery (orders)", biz.deliveryCosts);
+    if (biz.staffPaid > 0) m.set("Staff (advances + salaries)", biz.staffPaid);
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-  }, [data.expenses, biz.deliveryCosts]);
+  }, [data.expenses, biz.deliveryCosts, biz.staffPaid]);
   const dueList = [...biz.openDue].sort((a, b) => (a.due_date || "9999") < (b.due_date || "9999") ? -1 : 1);
   const c = biz.collections;
 
@@ -39,7 +40,7 @@ export default function FinancePage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Available cash" icon={Landmark} tone="green" value={fmt(biz.availableCash)} valueTone={biz.availableCash < 0 ? "red" : "green"} hint="Opening balance + money received − money spent. Real money you hold, not sales." />
         <StatCard label="Money received" icon={ArrowDownToLine} tone="green" value={fmt(biz.receivedTotal)} sub={`${data.payments.length} payments`} />
-        <StatCard label="Money spent" icon={ArrowUpFromLine} tone="red" value={fmt(biz.moneySpent)} sub={`Expenses ${fmt(biz.expensesTotal)} · delivery ${fmt(biz.deliveryCosts)}`} />
+        <StatCard label="Money spent" icon={ArrowUpFromLine} tone="red" value={fmt(biz.moneySpent)} sub={`Expenses ${fmt(biz.expensesTotal)} · delivery ${fmt(biz.deliveryCosts)} · staff ${fmt(biz.staffPaid)}`} />
         <StatCard label="Total receivables" icon={Hourglass} tone="amber" value={fmt(biz.receivables)} valueTone={biz.receivables > 0 ? "red" : "default"} hint="Billed but not yet paid. Not in your cash yet." />
       </div>
 
@@ -52,6 +53,7 @@ export default function FinancePage() {
               <Row k="+ Money received" v={fmt(biz.receivedTotal)} tone="text-ok" />
               <Row k="− Expenses" v={fmt(biz.expensesTotal)} tone="text-danger" />
               <Row k="− Delivery costs" v={fmt(biz.deliveryCosts)} tone="text-danger" />
+              <Row k="− Staff paid (advances + salaries)" v={fmt(biz.staffPaid)} tone="text-danger" note={<Link href="/salary" className="text-instrument-600 hover:underline dark:text-gauge-300">Salary</Link>} />
               <div className="border-t border-steel-200 pt-2 dark:border-steel-700"><Row k="= Available cash" v={fmt(biz.availableCash)} bold /></div>
             </dl>
             <div className="mt-4 rounded-lg bg-steel-50 p-3 text-xs text-steel-500 dark:bg-steel-900 dark:text-steel-400">

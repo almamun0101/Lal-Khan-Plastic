@@ -28,11 +28,12 @@ export default function SettingsPage() {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   async function handleSave() {
-    const nums = { opening_balance: form.opening_balance, credit_days: form.credit_days, low_cash_threshold: form.low_cash_threshold };
+    const nums = { opening_balance: form.opening_balance, credit_days: form.credit_days, low_cash_threshold: form.low_cash_threshold, overtime_rate: form.overtime_rate, salary_days_per_month: form.salary_days_per_month };
     for (const [k, v] of Object.entries(nums)) {
       if (v === "" || !Number.isFinite(Number(v))) return toast.error("Please enter valid numbers in the finance settings.");
     }
-    if (Number(form.credit_days) < 0 || Number(form.low_cash_threshold) < 0) return toast.error("Credit days and the cash minimum can't be negative.");
+    if (Number(form.credit_days) < 0 || Number(form.low_cash_threshold) < 0 || Number(form.overtime_rate) < 0) return toast.error("Credit days, the cash minimum and overtime pay can't be negative.");
+    if (Number(form.salary_days_per_month) < 1 || Number(form.salary_days_per_month) > 31) return toast.error("Days per month must be between 1 and 31.");
     setSaving(true);
     try {
       await updateSettings({
@@ -41,6 +42,8 @@ export default function SettingsPage() {
         credit_days: Math.round(Number(form.credit_days)),
         low_cash_threshold: Number(form.low_cash_threshold),
         week_starts_on: Number(form.week_starts_on),
+        overtime_rate: Number(form.overtime_rate),
+        salary_days_per_month: Math.round(Number(form.salary_days_per_month)),
       });
       toast.success("Settings saved");
     } catch (err) {
@@ -88,6 +91,22 @@ export default function SettingsPage() {
             <Label>Week starts on</Label>
             <Select value={form.week_starts_on} onChange={set("week_starts_on")}>{WEEK_START_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
             <p className="mt-1 text-xs text-steel-400">Used by the weekly analytics report.</p>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Salary rules</CardTitle></CardHeader>
+        <CardBody className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <Label>Overtime pay per extra shift</Label>
+            <Input type="number" min="0" step="0.01" value={form.overtime_rate} onChange={set("overtime_rate")} />
+            <p className="mt-1 text-xs text-steel-400">Paid when a worker covers a second shift on the same date.</p>
+          </div>
+          <div>
+            <Label>Days per month for daily rate</Label>
+            <Input type="number" min="1" max="31" step="1" value={form.salary_days_per_month} onChange={set("salary_days_per_month")} />
+            <p className="mt-1 text-xs text-steel-400">Monthly salary ÷ this = pay per present day.</p>
           </div>
         </CardBody>
       </Card>

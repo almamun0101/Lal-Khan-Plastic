@@ -14,7 +14,8 @@ Deploys to Netlify. Everything is free-tier friendly.
 | **Finance** | `/finance`: money received, money spent, available cash, receivables, expected collections (overdue / 7 days / 30 days / later), cash-flow chart |
 | **Expenses** | `/expenses`: categories, paid-by method, filters, Excel |
 | **Analytics** | `/analytics`: daily / weekly / monthly / yearly sales, received, expenses, profit, outstanding; top clients and products; Excel |
-| **Production** (original features, kept) | Production Count, Production Logs, Daily, Production Queue (was "Orders"), Floor Overview (was Dashboard), Production Value (was Income), Production Reports, Machines, Workers, Products, Settings |
+| **Team** | `/workers`: joining date + salary (monthly or per day), no employee ID · `/salary`: monthly salary sheet with days present, overtime, advances, over-advance and net payable |
+| **Production** (original features, kept) | Production Count, Production Logs, Daily, Production Calendar, Production Queue (was "Orders"), Floor Overview (was Dashboard), Production Value (was Income), Production Reports, Machines, Workers, Products, Settings |
 
 ## The four numbers that are never mixed up
 
@@ -80,3 +81,16 @@ Set the six `NEXT_PUBLIC_FIREBASE_*` variables in Site configuration → Environ
 `clients` · `sales_orders` (items[], discount, delivery_charge, delivery_cost, status, due_date, expected/ actual delivery, courier, tracking_id) · `payments` (client_id, order_id or "", amount, date, method, reference) · `expenses` (+ method) · `products` (+ cost_per_piece) · `production_logs` (items now include unit_price) · `orders` (production queue) · `machines` · `workers` · `app_config/settings` · `app_config/counters` (order numbers ORD-0001…).
 
 Totals are **never stored**; they are always recomputed from these records, so every page agrees.
+
+
+## Workers, salary and advances
+
+- **Present** = the worker is named (Worker 1 or Worker 2) on a production entry that date. One present day = one day's pay.
+- **Overtime** = the same worker covers **both** shifts on one date (for example a colleague didn't come). That date pays 1 day + 1 overtime shift. Overtime rate (default 300) and days per month (default 30) are in Settings.
+- **Daily rate** = monthly salary ÷ days per month, or the per-day wage if the worker is set up as "per day". Days before the joining date are ignored.
+- **Advances / salary payments** (Salary page) are deducted from what the worker has earned. If someone takes more than they earned it shows as **over-advance** (red, "Owes ...") and carries into the next months automatically.
+- **Finance:** staff payments count as money spent (cash), and staff pay *earned* counts against profit. Don't also enter salaries on the Expenses page (the dashboard warns if you do).
+- **Production Count** pre-fills the crew from the last entry on that machine (same shift if possible). Change it if someone else is on duty. It also shows which Production Queue order the count goes toward: target, done before, after this entry, remaining. New entries remember their order, so the queue page and the calendar agree.
+- **Production Calendar** (`/production/calendar`): 24-hour totals per day (day shift + night shift), calendar or table view, click a day for every entry, Excel export. A night shift counts on the date it starts.
+
+**After updating, publish `firestore.rules` again** (it now includes `staff_payments`).
