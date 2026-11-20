@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { createDoc, updateDocById, deleteDocById, newId, notifySaved, errorMessage } from "@/lib/firestore-service";
+import { createDoc, updateDocById, deleteDocById, newId, notifySaved, errorMessage, logActivity } from "@/lib/firestore-service";
 import { expenseSchema } from "@/lib/schemas";
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from "@/lib/constants";
 import { formatCurrency, formatDate, round2 } from "@/lib/utils";
@@ -61,7 +61,10 @@ export default function ExpensesPage() {
     }
     try {
       const fields = { ...v, name: v.name.trim(), amount: round2(v.amount), notes: v.notes ?? "", updated_at: Date.now() };
-      if (editing) notifySaved(await updateDocById("expenses", editing.id, fields), "Expense updated");
+      if (editing) {
+        notifySaved(await updateDocById("expenses", editing.id, fields), "Expense updated");
+        logActivity("edited", "expense", `${editing.name}: ${formatCurrency(editing.amount, cur)} → ${formatCurrency(fields.amount, cur)}, ${fields.date}`);
+      }
       else notifySaved(await createDoc("expenses", { ...fields, created_at: Date.now(), created_by: user?.email ?? "" }, idRef.current), "Expense added");
       setModal(false);
     } catch (err) {
@@ -70,7 +73,7 @@ export default function ExpensesPage() {
   }
   async function handleDelete() {
     setBusy(true);
-    try { notifySaved(await deleteDocById("expenses", deleting.id), "Expense removed"); setDeleting(null); }
+    try { notifySaved(await deleteDocById("expenses", deleting.id), "Expense removed"); logActivity("deleted", "expense", `${deleting.name}: ${formatCurrency(deleting.amount, cur)} on ${deleting.date}`); setDeleting(null); }
     catch (err) { toast.error(errorMessage(err, "Failed to remove expense")); }
     finally { setBusy(false); }
   }

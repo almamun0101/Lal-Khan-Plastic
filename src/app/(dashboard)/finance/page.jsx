@@ -7,7 +7,7 @@ import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { buildSeries } from "@/lib/finance";
 import { METHOD_LABEL, PAYMENT_METHODS } from "@/lib/constants";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCompact, formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -82,7 +82,7 @@ export default function FinancePage() {
             <ComposedChart data={series}>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-steel-100 dark:text-steel-700" />
               <XAxis dataKey="label" fontSize={12} stroke="currentColor" className="text-steel-400" />
-              <YAxis fontSize={12} stroke="currentColor" className="text-steel-400" tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : v)} />
+              <YAxis fontSize={12} stroke="currentColor" className="text-steel-400" tickFormatter={formatCompact} />
               <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} formatter={(v) => fmt(v)} />
               <Legend />
               <Bar dataKey="received" name="Received" fill="#4C9A6A" radius={[4, 4, 0, 0]} />

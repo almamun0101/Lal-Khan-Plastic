@@ -84,6 +84,20 @@ function formatNumber(n) {
   return (Number.isFinite(v) ? v : 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
+// Short axis labels: 1.5k, 12.5k, 1.2L (lakh), 2.3Cr (crore).
+function formatCompact(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "0";
+  const a = Math.abs(n);
+  const trim = (x) => String(Math.round(x * 10) / 10);
+  if (a >= 1e7) return `${trim(n / 1e7)}Cr`;
+  if (a >= 1e5) return `${trim(n / 1e5)}L`;
+  if (a >= 1e3) return `${trim(n / 1e3)}k`;
+  return String(Math.round(n));
+}
+
+const plural = (n, one, many = `${one}s`) => `${n} ${Number(n) === 1 ? one : many}`;
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function formatDate(iso) {
@@ -127,6 +141,7 @@ export {
   daysBetween,
   detectShift,
   diffDays,
+  formatCompact,
   formatCurrency,
   formatDate,
   formatDateTime,
@@ -134,6 +149,7 @@ export {
   formatNumber,
   genId,
   parseISODate,
+  plural,
   round2,
   startOfWeek,
   toISODate,

@@ -9,7 +9,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, C
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { buildAlerts, buildSeries, buildTransactions } from "@/lib/finance";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCompact, formatCurrency, formatDate, plural } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -96,7 +96,7 @@ export default function DashboardPage() {
           <StatCard label="Net profit" value={fmt(biz.netProfit)} icon={TrendingUp} tone="green" valueTone={biz.netProfit < 0 ? "red" : "default"} sub={k.profit_margin != null ? `${k.profit_margin}% margin` : undefined} hint="Sales − product cost − delivery − expenses − staff pay earned." href="/analytics" />
           <StatCard label="Expenses" value={fmt(biz.expensesTotal)} icon={ArrowUpFromLine} tone="red" sub={`Delivery costs ${fmt(biz.deliveryCosts)}`} href="/expenses" />
           <StatCard label="Next 7 days" value={fmt(biz.collections.next7)} icon={Hourglass} tone="amber" sub={`${fmt(biz.collections.next30)} in 8 to 30 days`} hint="Expected collections by due date." href="/finance" />
-          <StatCard label="Pending orders" value={biz.counts.pending} icon={Truck} tone="amber" sub={`${biz.counts.delivered} delivered · ${biz.counts.clients} clients`} href="/orders?filter=open" />
+          <StatCard label="Pending orders" value={biz.counts.pending} icon={Truck} tone="amber" sub={`${biz.counts.delivered} delivered · ${plural(biz.counts.clients, "client")}`} href="/orders?filter=open" />
         </div>
       </div>
 
@@ -118,7 +118,7 @@ export default function DashboardPage() {
               <ComposedChart data={series}>
                 <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-steel-100 dark:text-steel-700" />
                 <XAxis dataKey="label" fontSize={11} stroke="currentColor" className="text-steel-400" interval="preserveStartEnd" />
-                <YAxis fontSize={11} stroke="currentColor" className="text-steel-400" tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : v)} />
+                <YAxis fontSize={11} stroke="currentColor" className="text-steel-400" tickFormatter={formatCompact} />
                 <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} formatter={(v) => fmt(v)} />
                 <Legend />
                 <Bar dataKey="sales" name="Sales" fill="#2A5486" radius={[3, 3, 0, 0]} />

@@ -65,7 +65,12 @@ npm test                               # finance unit tests
 ### Firebase (one time)
 1. Authentication → Sign-in method → enable **Email/Password**; add your user.
 2. Create the **Firestore** database.
-3. **Publish the new `firestore.rules`** (Firestore → Rules → paste → Publish). The new collections `clients`, `sales_orders`, `payments` are blocked until you do. The red banner in the app will tell you if you forget.
+3. **Publish `firestore.rules` to the correct project.** This repository is configured for Firebase project `factory-7faaa` (`.firebaserc` and `.env.local` must agree). In Firebase Console, select `factory-7faaa` → Firestore Database → Rules, paste the complete contents of `firestore.rules`, then click **Publish**. The rules already include authenticated read access to `activity_log`; if that collection still reports `permission-denied`, the deployed rules are outdated, the app is pointed at a different project, or the user is not signed in.
+
+   Optional CLI deployment from the project folder (requires Firebase CLI login and project permissions):
+   ```bash
+   npx firebase-tools deploy --only firestore:rules --project factory-7faaa
+   ```
 4. Authentication → Settings → Authorized domains → add your Netlify domain.
 
 ### Netlify
@@ -94,3 +99,23 @@ Totals are **never stored**; they are always recomputed from these records, so e
 - **Production Calendar** (`/production/calendar`): 24-hour totals per day (day shift + night shift), calendar or table view, click a day for every entry, Excel export. A night shift counts on the date it starts.
 
 **After updating, publish `firestore.rules` again** (it now includes `staff_payments`).
+
+## Second audit: bugs fixed and real-world safeguards
+
+Tested by driving the real app in a browser (client → order with advance → payments → delivery → production shifts → salary → calendar → dashboard totals, plus mobile and dark mode) against an in-memory database, then the money rules again with unit tests (`npm test`).
+
+Fixed:
+- **Production Count layout**: the order-progress box squeezed the product and count fields down to "Pl" / "000". Fixed.
+- **Order form layout**: Qty and Total boxes were cut off ("10(", "৳25,..."). Fixed.
+- **Dropdown width**: filter dropdowns ignored their width and the arrow floated far away. Fixed.
+- **"Total Bill" on Production Count** now says *Production value (estimate)* so it can't be mistaken for sales.
+- **Silent overtime**: a night shift used to be pre-filled with the *day* crew, which would count them as overtime. Crew now pre-fills from the last entry of the **same shift** only.
+- Chart axis labels rounded oddly (12.5k showed as 13k); "1 clients" / "1 days" wording; a Next.js smooth-scroll warning.
+
+Added for real-world use:
+- **Counter reset**: tick "counter was reset or replaced" so a lower reading starts from 0 instead of being rejected.
+- **Heads-ups on Production Count**: a worker already on the other shift today (= overtime), a worker on two machines in one shift, and entries older than the latest one for that machine.
+- **Activity Log** (`/activity`): who edited, cancelled or deleted payments, expenses, salary payments, orders and production entries. It can be added to but never edited or deleted (enforced in `firestore.rules`).
+- **Backup**: Settings → Download backup gives every record as one JSON file.
+
+**Publish `firestore.rules` again** after updating (new: `staff_payments`, `activity_log`). The in-app connection check now tests `activity_log` directly rather than a separate diagnostics collection, so it reports the permission that the Activity Log page actually needs.

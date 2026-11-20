@@ -17,7 +17,7 @@ import { Input, Label } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 
-const EMPTY_ITEMS = [{ product_id: "", count: 0 }];
+const EMPTY_ITEMS = [{ product_id: "", count: 0, reset: false }];
 
 // Shows which order this counter reading goes toward and how far along it is.
 function OrderBox({ order, hasSelection, produced, logs, productMap, className = "" }) {
@@ -96,6 +96,10 @@ export default function ProductionEntryPage() {
   const machineId = watch("machine_id");
   const items = watch("items");
   const shift = watch("shift");
+  const entryDate = watch("date");
+  const w1 = watch("worker1_id");
+  const w2 = watch("worker2_id");
+
 
   // Pre-fill the crew with whoever was on this machine last time (same shift if
   // possible). Stops as soon as the operator picks someone themselves.
@@ -120,6 +124,26 @@ export default function ProductionEntryPage() {
 
   const priceMap = useMemo(() => new Map(products.map((p) => [p.id, p.price_per_piece])), [products]);
   const machineMap = useMemo(() => new Map(machines.map((m) => [m.id, m])), [machines]);
+
+  // Heads-up notes about the crew: covering the other shift the same date is
+  // overtime; being on two machines in one shift is a likely mistake.
+  const dutyNotes = useMemo(() => {
+    const notes = [];
+    if (!entryDate) return notes;
+    const ot = settings.overtime_rate;
+    [w1, w2].filter(Boolean).forEach((id) => {
+      const name = allWorkers.find((w) => w.id === id)?.name ?? "This worker";
+      const sameDay = logs.filter((l) => l.date === entryDate && (l.worker1_id === id || l.worker2_id === id));
+      if (sameDay.some((l) => l.shift !== shift)) notes.push(`${name} is already on the ${shift === "day" ? "night" : "day"} shift on this date, so this shift counts as overtime (${formatCurrency(ot, settings.currency)}).`);
+      const other = sameDay.find((l) => l.shift === shift && l.machine_id !== machineId);
+      if (other) notes.push(`${name} is already on ${machineMap.get(other.machine_id)?.name ?? "another machine"} in this shift. Check that this isn't a mistake.`);
+    });
+    if (machineId) {
+      const latest = logs.filter((l) => l.machine_id === machineId).reduce((m, l) => (l.date > m ? l.date : m), "");
+      if (latest && entryDate < latest) notes.push(`This machine already has entries on ${latest}, later than ${entryDate}. Counters follow the order entries are saved, so enter older readings before newer ones where possible.`);
+    }
+    return notes;
+  }, [entryDate, w1, w2, shift, logs, allWorkers, machineId, machineMap, settings.overtime_rate, settings.currency]);
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   // What this machine is running right now, per the most recent log — shown
@@ -140,7 +164,7 @@ export default function ProductionEntryPage() {
     }
     const state = getMachineCurrentState(logs, newMachineId);
     if (state) {
-      replace([{ product_id: state.productId, count: state.lastCount }]);
+      replace([{ product_id: state.productId, count: state.lastCount, reset: false }]);
     } else {
       replace(EMPTY_ITEMS);
     }
@@ -150,7 +174,7 @@ export default function ProductionEntryPage() {
   // combo (0 if it's never been run on this machine before). This is what
   // "produced this session" gets measured against.
   const startCounts = (items ?? []).map((item) =>
-    item.product_id && machineId ? getLastCountForMachineProduct(logs, machineId, item.product_id) : 0
+    item.reset ? 0 : item.product_id && machineId ? getLastCountForMachineProduct(logs, machineId, item.product_id) : 0
   );
 
   const producedPerRow = (items ?? []).map((item, idx) => Number(item.count || 0) - startCounts[idx]);
@@ -190,6 +214,7 @@ export default function ProductionEntryPage() {
           const end = Number(item.count);
           return {
             product_id: item.product_id,
+            counter_reset: !!item.reset,
             order_id: getOpenOrder(orders, values.machine_id, item.product_id)?.id ?? "",
             start_count: start,
             end_count: end,
@@ -301,6 +326,9 @@ export default function ProductionEntryPage() {
               <Label>Operator</Label>
               <Input value={user?.email ?? ""} disabled className="opacity-70" />
             </div>
+            {dutyNotes.map((n, i) => (
+              <p key={i} className="rounded-lg bg-gauge-50 px-3 py-2 text-xs text-gauge-700 dark:bg-gauge-900/20 dark:text-gauge-300 sm:col-span-3">{n}</p>
+            ))}
             {crewAuto && <p className="text-xs text-steel-400 sm:col-span-3">Filled in from the last entry on this machine. Change it if someone else is on duty today. Anyone named here is counted present for salary, and covering a second shift on the same date is counted as overtime.</p>}
           </CardBody>
         </Card>
@@ -312,8 +340,8 @@ export default function ProductionEntryPage() {
           <CardBody className="space-y-3">
             {errors.items?.message && <p className="text-xs text-danger">{errors.items.message}</p>}
             {fields.map((field, index) => (
-              <div key={field.id} className="flex flex-col gap-3 rounded-lg border border-steel-100 p-3 dark:border-steel-700 sm:flex-row sm:items-end">
-                <div className="flex-1">
+              <div key={field.id} className="flex flex-col gap-3 rounded-lg border border-steel-100 p-3 dark:border-steel-700 sm:flex-row sm:flex-wrap sm:items-end">
+                <div className="min-w-[10rem] flex-1">
                   <Label>Product</Label>
                   <Select {...register(`items.${index}.product_id`)} error={errors.items?.[index]?.product_id?.message}>
                     <option value="">Select product</option>
@@ -354,6 +382,15 @@ export default function ProductionEntryPage() {
                 >
                   <Trash2 className="h-4 w-4 text-danger" />
                 </Button>
+                <label className="flex w-full items-center gap-2 text-xs text-steel-500 sm:basis-full">
+                  <input type="checkbox" {...register(`items.${index}.reset`)} />
+                  The machine counter was reset or replaced (start this reading from 0)
+                </label>
+                {producedPerRow[index] < 0 && !items?.[index]?.reset && (
+                  <p className="w-full rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger sm:basis-full">
+                    This is lower than the last reading ({startCounts[index]}). If the counter was reset or replaced, tick the box above. Otherwise check the number.
+                  </p>
+                )}
                 <OrderBox
                   className="w-full sm:basis-full"
                   order={machineId && items?.[index]?.product_id ? getOpenOrder(orders, machineId, items[index].product_id) : null}
@@ -369,7 +406,7 @@ export default function ProductionEntryPage() {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => append({ product_id: "", count: 0 })}
+              onClick={() => append({ product_id: "", count: 0, reset: false })}
             >
               <Plus className="h-4 w-4" /> Add Product (this shift's product finished)
             </Button>
@@ -391,7 +428,7 @@ export default function ProductionEntryPage() {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-steel-400">Total Bill</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-steel-400">Production value (estimate)</p>
               <p className="font-display text-2xl font-bold text-instrument-600 dark:text-gauge-300">
                 {formatCurrency(grandTotal, settings.currency)}
               </p>

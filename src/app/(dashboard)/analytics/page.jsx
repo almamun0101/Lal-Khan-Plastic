@@ -7,7 +7,7 @@ import { ResponsiveContainer, ComposedChart, LineChart, Bar, Line, XAxis, YAxis,
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { PERIODS, buildSeries } from "@/lib/finance";
-import { formatCurrency } from "@/lib/utils";
+import { formatCompact, formatCurrency } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -63,7 +63,7 @@ export default function AnalyticsPage() {
             <ComposedChart data={series}>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-steel-100 dark:text-steel-700" />
               <XAxis dataKey="label" {...axis} interval="preserveStartEnd" />
-              <YAxis {...axis} tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : v)} />
+              <YAxis {...axis} tickFormatter={formatCompact} />
               <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} formatter={(v) => fmt(v)} />
               <Legend />
               <Bar dataKey="sales" name="Sales" fill="#2A5486" radius={[4, 4, 0, 0]} />

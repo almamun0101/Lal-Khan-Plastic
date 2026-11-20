@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { PAYMENT_METHODS, METHOD_LABEL } from "@/lib/constants";
-import { deleteDocById, errorMessage, notifySaved } from "@/lib/firestore-service";
+import { deleteDocById, errorMessage, logActivity, notifySaved } from "@/lib/firestore-service";
 import { addDays, formatCurrency, round2 } from "@/lib/utils";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Label } from "@/components/ui/Input";
@@ -53,7 +53,7 @@ export default function PaymentsPage() {
   }
   async function remove() {
     setBusy(true);
-    try { notifySaved(await deleteDocById("payments", del.id), "Payment deleted"); setDel(null); }
+    try { notifySaved(await deleteDocById("payments", del.id), "Payment deleted"); logActivity("deleted", "payment", `${clientById.get(del.client_id)?.name ?? "client"}: ${formatCurrency(del.amount, cur)} on ${del.date} (${METHOD_LABEL[del.method] ?? del.method})`); setDel(null); }
     catch (e) { toast.error(errorMessage(e, "Could not delete the payment")); }
     finally { setBusy(false); }
   }

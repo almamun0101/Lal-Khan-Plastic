@@ -1,4 +1,4 @@
-import { doc, getDocFromServer, setDoc } from "firebase/firestore";
+import { collection, doc, getDocsFromServer, limit, query, setDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { explainFirebaseError } from "./firebase-error-hints";
 
@@ -22,10 +22,16 @@ export async function runDiagnostics({ testWrite = false } = {}) {
 
   const testRef = doc(db, "_diagnostics", "connectivity_test");
   try {
-    await getDocFromServer(testRef);
-    results.read = { ok: true, message: "Firestore reads are working." };
+    // Test the collection that is actually failing in the banner. Reading the
+    // private diagnostics collection alone can pass while activity_log is denied.
+    await getDocsFromServer(query(collection(db, "activity_log"), limit(1)));
+    results.read = { ok: true, message: "Firestore activity_log reads are working." };
   } catch (err) {
-    results.read = { ok: false, message: explainFirebaseError(err), code: err.code };
+    results.read = {
+      ok: false,
+      message: `Cannot read activity_log: ${explainFirebaseError(err)}`,
+      code: err.code,
+    };
   }
 
   if (testWrite) {

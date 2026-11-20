@@ -8,7 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useData } from "@/contexts/DataContext";
 import { staffPaymentSchema } from "@/lib/schemas";
 import { PAYMENT_METHODS } from "@/lib/constants";
-import { createDoc, errorMessage, newId, notifySaved, updateDocById } from "@/lib/firestore-service";
+import { createDoc, errorMessage, logActivity, newId, notifySaved, updateDocById } from "@/lib/firestore-service";
 import { formatCurrency, round2 } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Label, Textarea } from "@/components/ui/Input";
@@ -54,7 +54,10 @@ export function StaffPaymentModal({ open, onClose, payment, workerId = "", type 
     }
     try {
       const fields = { worker_id: v.worker_id, type: v.type, amount: round2(v.amount), date: v.date, method: v.method, note: v.note ?? "", updated_at: Date.now() };
-      if (payment) notifySaved(await updateDocById("staff_payments", payment.id, fields), "Updated");
+      if (payment) {
+        notifySaved(await updateDocById("staff_payments", payment.id, fields), "Updated");
+        logActivity("edited", "staff payment", `${formatCurrency(payment.amount, cur)} → ${formatCurrency(fields.amount, cur)}, ${fields.date}`);
+      }
       else notifySaved(await createDoc("staff_payments", { ...fields, created_at: Date.now(), created_by: user?.email ?? "" }, idRef.current), v.type === "advance" ? "Advance recorded" : "Salary payment recorded");
       onClose();
     } catch (err) {

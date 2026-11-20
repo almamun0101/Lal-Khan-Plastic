@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ClipboardList, ListChecks, Users, Cog, Package, FileBarChart, Settings, Factory,
-  ListOrdered, CalendarDays, TrendingUp, Receipt, X, UserRound, ShoppingCart, Wallet, Landmark, BarChart3, Gauge, Layers, CalendarRange, HandCoins,
+  ListOrdered, CalendarDays, TrendingUp, Receipt, X, UserRound, ShoppingCart, Wallet, Landmark, BarChart3, Gauge, Layers, CalendarRange, HandCoins, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +50,7 @@ const groups = [
     items: [
       { href: "/products", label: "Products", icon: Package },
       { href: "/machines", label: "Machines", icon: Cog },
+      { href: "/activity", label: "Activity Log", icon: History },
       { href: "/settings", label: "Settings", icon: Settings },
     ],
   },

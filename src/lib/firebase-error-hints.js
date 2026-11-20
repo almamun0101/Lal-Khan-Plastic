@@ -3,7 +3,7 @@
 // page and the save-error toasts so the message is consistent everywhere.
 export const FIREBASE_ERROR_HINTS = {
   "permission-denied":
-    "Firestore security rules are blocking this. In the Firebase console: Firestore Database → Rules → paste this project's firestore.rules → Publish. (New collections such as clients, sales_orders and payments need the updated rules.)",
+    "Firestore rejected this request. First confirm that you are signed in, then publish this project's firestore.rules to the SAME Firebase project configured in the deployment (factory-7faaa). The current rules include activity_log read access for signed-in users. Firebase Console → select factory-7faaa → Firestore Database → Rules → paste firestore.rules → Publish. If the rules already match, check that this deployment's NEXT_PUBLIC_FIREBASE_PROJECT_ID is factory-7faaa and sign out/in again.",
   "not-found":
     "This Firestore database doesn't exist yet. In the Firebase console: Build → Firestore Database → Create database.",
   unavailable:

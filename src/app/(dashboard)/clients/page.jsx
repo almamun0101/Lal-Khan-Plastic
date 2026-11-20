@@ -5,7 +5,7 @@ import { Plus, Search, Pencil, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { deleteDocById, errorMessage, notifySaved } from "@/lib/firestore-service";
+import { deleteDocById, errorMessage, logActivity, notifySaved } from "@/lib/firestore-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -47,6 +47,7 @@ export default function ClientsPage() {
     setBusy(true);
     try {
       notifySaved(await deleteDocById("clients", deleting.id), "Client deleted");
+      logActivity("deleted", "client", deleting.name);
       setDeleting(null);
     } catch (e) {
       toast.error(errorMessage(e, "Could not delete the client"));

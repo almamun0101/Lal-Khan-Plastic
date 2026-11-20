@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useData } from "@/contexts/DataContext";
 import { WEEK_START_OPTIONS } from "@/lib/constants";
 import { errorMessage } from "@/lib/firestore-service";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -14,6 +15,7 @@ const CURRENCIES = ["BDT", "USD", "EUR", "GBP", "INR"];
 
 export default function SettingsPage() {
   const { settings, updateSettings, loading } = useSettings();
+  const { data } = useData();
   const [form, setForm] = useState(settings);
   const [saving, setSaving] = useState(false);
   const [synced, setSynced] = useState(false);
@@ -51,6 +53,19 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // One-click copy of everything, so you always hold your own backup.
+  function downloadBackup() {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const payload = { exported_at: new Date().toISOString(), settings, ...data };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `business-backup-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.success("Backup downloaded");
   }
 
   return (
@@ -129,6 +144,14 @@ export default function SettingsPage() {
             <option value="light">Light</option>
             <option value="dark">Dark</option>
           </Select>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Backup</CardTitle></CardHeader>
+        <CardBody className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-steel-500">Download every client, order, payment, expense, worker, salary and production record as one file. Do this regularly and keep a copy somewhere safe.</p>
+          <Button variant="secondary" onClick={downloadBackup}>Download backup</Button>
         </CardBody>
       </Card>
 

@@ -67,14 +67,15 @@ export function getOpenOrder(orders, machineId, productId) {
 }
 
 /**
- * The crew (Worker 1 / Worker 2) used the last time this machine was logged,
- * preferring the same shift. Used to pre-fill the crew so it only needs
+ * The crew (Worker 1 / Worker 2) used the last time this machine was logged
+ * in the same shift. Used to pre-fill the crew so it only needs
  * changing when someone different is on duty. Expects logs newest-first.
  */
 export function getLastCrew(logs, machineId, shift) {
+  // Same shift only. Day and night crews are normally different people, and
+  // pre-filling the other shift's crew would silently count them as overtime.
   const same = logs.find((l) => l.machine_id === machineId && l.shift === shift && (l.worker1_id || l.worker2_id));
-  const any = same ?? logs.find((l) => l.machine_id === machineId && (l.worker1_id || l.worker2_id));
-  return any ? { worker1_id: any.worker1_id ?? "", worker2_id: any.worker2_id ?? "", sameShift: !!same } : null;
+  return same ? { worker1_id: same.worker1_id ?? "", worker2_id: same.worker2_id ?? "" } : null;
 }
 
 export function orderLabel(order, productMap) {

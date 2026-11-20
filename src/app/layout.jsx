@@ -23,7 +23,7 @@ const metadata = {
   description: "Clients, orders, payments, expenses and production for your factory."
 };
 function RootLayout({ children }) {
-  return <html lang="en" suppressHydrationWarning>
+  return <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body
     className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} font-body antialiased`}
   >

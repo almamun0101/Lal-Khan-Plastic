@@ -37,6 +37,13 @@ service cloud.firestore {
         && request.resource.data.date is string;
     }
 
+    // Audit trail: can be added to and read, but never changed or removed.
+    match /activity_log/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.action is string;
+      allow update, delete: if false;
+    }
+
     match /staff_payments/{id} {
       allow read, delete: if isSignedIn();
       allow create, update: if isSignedIn()

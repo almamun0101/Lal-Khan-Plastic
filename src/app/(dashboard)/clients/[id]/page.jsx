@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { clientLedger } from "@/lib/finance";
-import { deleteDocById, errorMessage, notifySaved } from "@/lib/firestore-service";
+import { deleteDocById, errorMessage, logActivity, notifySaved } from "@/lib/firestore-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -53,6 +53,7 @@ export default function ClientDetailPage() {
     setBusy(true);
     try {
       notifySaved(await deleteDocById("payments", delPay.id), "Payment deleted");
+      logActivity("deleted", "payment", `${client.name}: ${formatCurrency(delPay.amount, cur)} on ${delPay.date}`);
       setDelPay(null);
     } catch (e) {
       toast.error(errorMessage(e, "Could not delete the payment"));

@@ -7,7 +7,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { deleteDocById, updateDocById } from "@/lib/firestore-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { logItemValue } from "@/lib/finance";
-import { errorMessage, notifySaved } from "@/lib/firestore-service";
+import { errorMessage, logActivity, notifySaved } from "@/lib/firestore-service";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -83,6 +83,7 @@ function ProductionLogsPage() {
     setBusy(true);
     try {
       notifySaved(await deleteDocById("production_logs", deleting.id), "Entry deleted");
+      logActivity("deleted", "production entry", `${deleting.date} ${deleting.shift} shift, ${deleting.total_quantity} pcs`);
       setDeleting(null);
     } catch (err) {
       toast.error(errorMessage(err, "Failed to delete entry"));

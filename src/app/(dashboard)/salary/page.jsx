@@ -8,7 +8,7 @@ import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { computePayroll } from "@/lib/payroll";
 import { METHOD_LABEL } from "@/lib/constants";
-import { deleteDocById, errorMessage, notifySaved } from "@/lib/firestore-service";
+import { deleteDocById, errorMessage, logActivity, notifySaved } from "@/lib/firestore-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -50,7 +50,7 @@ export default function SalaryPage() {
 
   async function removePayment() {
     setBusy(true);
-    try { notifySaved(await deleteDocById("staff_payments", del.id), "Deleted"); setDel(null); }
+    try { notifySaved(await deleteDocById("staff_payments", del.id), "Deleted"); logActivity("deleted", "staff payment", `${del.type === "advance" ? "Advance" : "Salary"} ${fmt(del.amount)} to ${data.workers.find((w) => w.id === del.worker_id)?.name ?? "worker"} on ${del.date}`); setDel(null); }
     catch (e) { toast.error(errorMessage(e, "Could not delete")); }
     finally { setBusy(false); }
   }

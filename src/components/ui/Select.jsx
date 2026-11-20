@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Select = forwardRef(({ className, error, children, ...props }, ref) => (
-  <div className="w-full">
+  <div className={cn("w-full", className)}>
     <div className="relative">
       <select
         ref={ref}
@@ -11,8 +11,7 @@ const Select = forwardRef(({ className, error, children, ...props }, ref) => (
           "w-full appearance-none rounded-lg border bg-white px-3 py-2.5 pr-9 text-sm text-steel-800",
           "border-steel-200 focus:border-instrument-500 focus:outline-none focus:ring-2 focus:ring-instrument-500/20",
           "dark:border-steel-600 dark:bg-steel-900 dark:text-steel-100 disabled:opacity-60",
-          error && "border-danger focus:border-danger focus:ring-danger/20",
-          className
+          error && "border-danger focus:border-danger focus:ring-danger/20"
         )}
         {...props}
       >

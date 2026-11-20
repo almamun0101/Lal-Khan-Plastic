@@ -9,7 +9,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useData } from "@/contexts/DataContext";
 import { salesOrderSchema } from "@/lib/schemas";
 import { PAYMENT_METHODS } from "@/lib/constants";
-import { createDoc, createSalesOrder, errorMessage, newId, notifySaved, updateDocById } from "@/lib/firestore-service";
+import { createDoc, createSalesOrder, errorMessage, logActivity, newId, notifySaved, updateDocById } from "@/lib/firestore-service";
 import { deliveryPatch } from "@/lib/finance";
 import { addDays, formatCurrency, round2 } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
@@ -135,6 +135,7 @@ export function OrderFormModal({ open, onClose, order, clientId = "", onSaved })
           patch = { ...base, status: d.status, items: d.items };
         }
         notifySaved(await updateDocById("sales_orders", order.id, patch), "Order updated");
+        logActivity("edited", "order", `${order.order_no}: total now ${formatCurrency(totals.total, cur)}`);
         onSaved?.(order.id);
       } else {
         const nums = data.sales_orders.map((o) => parseInt(String(o.order_no ?? "").replace(/\D/g, ""), 10)).filter(Number.isFinite);
@@ -221,7 +222,7 @@ export function OrderFormModal({ open, onClose, order, clientId = "", onSaved })
                         <Label>Item name *</Label>
                         <Input {...register(`items.${index}.name`)} error={e?.name?.message} placeholder="What is being sold" />
                       </div>
-                      <div className="md:col-span-1">
+                      <div className="md:col-span-2">
                         <Label>Qty *</Label>
                         <Input type="number" min="0" step="any" inputMode="decimal" {...register(`items.${index}.qty`)} error={e?.qty?.message} />
                       </div>
@@ -233,17 +234,15 @@ export function OrderFormModal({ open, onClose, order, clientId = "", onSaved })
                         <Label>Cost / unit</Label>
                         <Input type="number" min="0" step="0.01" inputMode="decimal" {...register(`items.${index}.unit_cost`)} error={e?.unit_cost?.message} />
                       </div>
-                      <div className="flex items-end justify-between gap-2 md:col-span-1">
-                        <div className="min-w-0">
-                          <Label>Total</Label>
-                          <p className="truncate rounded-lg bg-steel-50 px-2 py-2.5 font-mono text-sm dark:bg-steel-900">{formatCurrency(line, cur)}</p>
-                        </div>
-                      </div>
-                      <div className="col-span-2 md:col-span-11">
+                      <div className="col-span-2 md:col-span-8">
                         <Label>Customization / notes</Label>
                         <Input {...register(`items.${index}.customization`)} placeholder="Size, colour, design, text to print…" />
                       </div>
-                      <div className="col-span-2 flex items-end justify-end md:col-span-1">
+                      <div className="md:col-span-3">
+                        <Label>Line total</Label>
+                        <p className="rounded-lg bg-steel-50 px-3 py-2.5 text-right font-mono text-sm dark:bg-steel-900">{formatCurrency(line, cur)}</p>
+                      </div>
+                      <div className="flex items-end justify-end md:col-span-1">
                         <Button
                           type="button" variant="ghost" size="sm"
                           onClick={() => fields.length > 1 && remove(index)}

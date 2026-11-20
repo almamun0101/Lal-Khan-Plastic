@@ -8,7 +8,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useData } from "@/contexts/DataContext";
 import { paymentSchema } from "@/lib/schemas";
 import { PAYMENT_METHODS } from "@/lib/constants";
-import { createDoc, errorMessage, newId, notifySaved, updateDocById } from "@/lib/firestore-service";
+import { createDoc, errorMessage, logActivity, newId, notifySaved, updateDocById } from "@/lib/firestore-service";
 import { formatCurrency, formatDate, round2 } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Label, Textarea } from "@/components/ui/Input";
@@ -27,6 +27,7 @@ export function PaymentFormModal({ open, onClose, payment, clientId = "", orderI
   const { settings } = useSettings();
   const { data, biz, today } = useData();
   const idRef = useRef("");
+  const cur = settings.currency;
 
   const { register, handleSubmit, reset, watch, setValue, setError, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(paymentSchema),
@@ -86,6 +87,7 @@ export function PaymentFormModal({ open, onClose, payment, clientId = "", orderI
       };
       if (payment) {
         notifySaved(await updateDocById("payments", payment.id, fields), "Payment updated");
+        logActivity("edited", "payment", `${formatCurrency(payment.amount, cur)} ${payment.date} → ${formatCurrency(fields.amount, cur)} ${fields.date}`);
       } else {
         notifySaved(await createDoc("payments", { ...fields, created_at: Date.now(), created_by: user?.email ?? "" }, idRef.current), "Payment recorded");
       }

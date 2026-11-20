@@ -8,7 +8,7 @@ import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { ORDER_STATUSES } from "@/lib/constants";
 import { statusPatch, normalizeOrder, orderTotal, effectiveStatus, deliveryProgress, orderProductCost, orderProfit } from "@/lib/finance";
-import { deleteDocById, errorMessage, notifySaved, updateDocById } from "@/lib/firestore-service";
+import { deleteDocById, errorMessage, logActivity, notifySaved, updateDocById } from "@/lib/firestore-service";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -69,9 +69,12 @@ export default function OrderDetailPage() {
     setBusy(true);
     try {
       if (confirm === "cancel") notifySaved(await updateDocById("sales_orders", order.id, { status: "cancelled", cancelled_at: Date.now(), updated_at: Date.now() }), "Order cancelled");
+      if (confirm === "cancel") logActivity("cancelled", "order", `${order.order_no} (${formatCurrency(total, cur)})`);
       if (confirm === "reopen") notifySaved(await updateDocById("sales_orders", order.id, { status: "pending", updated_at: Date.now() }), "Order reopened");
+      if (confirm === "reopen") logActivity("reopened", "order", order.order_no);
       if (confirm === "delete") {
         await deleteDocById("sales_orders", order.id);
+        logActivity("deleted", "order", `${order.order_no} (${formatCurrency(total, cur)})`);
         toast.success("Order deleted");
         router.replace("/orders");
         return;

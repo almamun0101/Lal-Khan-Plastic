@@ -8,7 +8,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { toast } from "sonner";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 import { explainFirebaseError } from "./firebase-error-hints";
 
 // Firestore only resolves a write promise once the SERVER confirms it. When the
@@ -95,6 +95,20 @@ export async function createSalesOrder(data, { id, floor = 0 } = {}) {
     20000
   );
   return { id: ref.id, order_no, queued };
+}
+
+/**
+ * Records who changed or removed something important (payments, expenses, salary
+ * payments, orders). Entries can be created and read but never edited or deleted
+ * (see firestore.rules), so there is always a trail. Never blocks or fails the
+ * action it describes.
+ */
+export function logActivity(action, entity, summary) {
+  try {
+    createDoc("activity_log", { action, entity, summary, by: auth.currentUser?.email ?? "", at: Date.now() }).catch(() => {});
+  } catch {
+    /* logging must never get in the way */
+  }
 }
 
 // One consistent success/queued toast for every save.

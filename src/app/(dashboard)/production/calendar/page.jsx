@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { useData } from "@/contexts/DataContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { orderLabel } from "@/lib/production-helpers";
-import { daysBetween, formatDate, formatNumber } from "@/lib/utils";
+import { daysBetween, formatDate, formatNumber, plural } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -115,7 +115,7 @@ export default function ProductionCalendarPage() {
         <StatCard label="Month total (24h)" value={formatNumber(monthDay + monthNight)} sub="pieces" tone="blue" />
         <StatCard label="Day shift" value={formatNumber(monthDay)} icon={Sun} tone="amber" />
         <StatCard label="Night shift" value={formatNumber(monthNight)} icon={Moon} tone="blue" />
-        <StatCard label="Average per running day" value={formatNumber(activeDays ? Math.round((monthDay + monthNight) / activeDays) : 0)} sub={`${activeDays} days with production`} tone="green" />
+        <StatCard label="Average per running day" value={formatNumber(activeDays ? Math.round((monthDay + monthNight) / activeDays) : 0)} sub={`${plural(activeDays, "day")} with production`} tone="green" />
       </div>
 
       {view === "calendar" ? (

@@ -12,6 +12,7 @@ const money = (label = "Amount") => z.coerce.number({ invalid_type_error: `${lab
 const productionLineItemSchema = z.object({
   product_id: z.string().min(1, "Select a product"),
   count: z.coerce.number().min(0, "Must be 0 or more"),
+  reset: z.boolean().optional(), // counter was reset / replaced, so this reading starts from 0
 });
 
 const productionEntrySchema = z

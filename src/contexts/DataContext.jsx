@@ -5,7 +5,7 @@
 // everything and totals on different pages could briefly disagree. Now every page
 // reads the same snapshot, and the derived business figures (`biz`) are computed
 // once, in one place (lib/finance.js), from that snapshot.
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +37,7 @@ const SORTERS = {
   expenses: byDateDesc,
   payments: byDateDesc,
   staff_payments: byDateDesc,
+  activity_log: (a, b) => num(b.at) - num(a.at),
   sales_orders: (a, b) => {
     const da = a.order_date ?? "";
     const db_ = b.order_date ?? "";
